@@ -242,21 +242,28 @@ class AppointmentController extends Controller
             $appointment->save();
 
             // Update or create case description
-            $caseData = [
-                'case_description' => $request->input('case_description'),
-                'weight' => $request->input('weight'),
-                'pulse' => $request->input('pulse'),
-                'temperature' => $request->input('temperature'),
-                'blood_pressure' => $request->input('blood_pressure'),
-                'tall' => $request->input('tall'),
-                'spo2' => $request->input('spo2'),
-                'notes' => $request->input('notes'),
-            ];
-            if ($appointment->caseDescription) {
-                $appointment->caseDescription->update($caseData);
-            } else {
-                $appointment->caseDescription()->create($caseData);
-            }
+           $caseData = [
+    'case_description' => $request->input('case_description'),
+    'weight' => $request->input('weight'),
+    'pulse' => $request->input('pulse'),
+    'temperature' => $request->input('temperature'),
+    'blood_pressure' => $request->input('blood_pressure'),
+    'tall' => $request->input('tall'),
+    'spo2' => $request->input('spo2'),
+    'notes' => $request->input('notes'),
+];
+
+// Remove all null or empty fields
+$caseData = array_filter($caseData, fn($value) => $value !== null && $value !== '');
+
+if (!empty($caseData)) {
+    if ($appointment->caseDescription) {
+        $appointment->caseDescription->update($caseData);
+    } else {
+        $appointment->caseDescription()->create($caseData);
+    }
+}
+
 
             // Sync medicaments
             $medSync = [];
