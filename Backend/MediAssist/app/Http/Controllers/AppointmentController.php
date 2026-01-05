@@ -222,10 +222,14 @@ class AppointmentController extends Controller
                 'case_description' => 'nullable|string',
                 'weight' => 'nullable|numeric|min:0|max:300',
                 'pulse' => 'nullable|numeric|min:0|max:200',
-                'temperature' => 'nullable|numeric|min:30|max:45',
+                'temperature' => 'nullable|numeric|max:45',
                 'blood_pressure' => 'nullable|string|max:20',
                 'tall' => 'nullable|numeric|min:0|max:250',
                 'spo2' => 'nullable|numeric|min:0|max:100',
+                'K' => 'nullable|string|max:50',
+                'P' => 'nullable|string|max:50',
+                'Glycimide' => 'nullable|numeric|min:0|max:200',
+                'Sang' => 'nullable|string|max:50',
                 'notes' => 'nullable|string|max:255',
                 'diagnostic' => 'nullable|string',
                 'medicaments' => 'nullable|array',
@@ -250,6 +254,10 @@ class AppointmentController extends Controller
     'blood_pressure' => $request->input('blood_pressure'),
     'tall' => $request->input('tall'),
     'spo2' => $request->input('spo2'),
+    'K' => $request->input('K'),
+    'P' => $request->input('P'),
+    'Sang' => $request->input('Sang'),
+    'Glycimide' => $request->input('Glycimide'),
     'notes' => $request->input('notes'),
 ];
 
@@ -539,121 +547,155 @@ if (!empty($caseData)) {
     /**
      * POST /api/appointments (create a new appointment) — simpler version
      */
-    public function storeV1(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'patient_id' => 'required|integer|exists:patients,ID_patient',
-                'type' => 'required|string|in:Consultation,Control',
-                'appointment_date' => 'required|date|after_or_equal:today',
-                'notes' => 'nullable|string|max:1000',
-            ]);
+public function storeV1(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'patient_id' => 'required|integer|exists:patients,ID_patient',
+            'type' => 'required|string|in:Consultation,Control',
+            'appointment_date' => 'required|date|after_or_equal:today',
+            'notes' => 'nullable|string|max:1000',
+        ]);
 
-            $patient = Patient::where('ID_patient', $validated['patient_id'])
-                ->where('archived', false)
-                ->first();
+        $patient = Patient::where('ID_patient', $validated['patient_id'])
+            ->where('archived', false)
+            ->first();
 
-            if (!$patient) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Patient non trouvé ou archivé',
-                ], 404);
-            }
-
-            $appointment = Appointment::create([
-                'ID_patient' => $validated['patient_id'],
-                'type' => $validated['type'],
-                'appointment_date' => $validated['appointment_date'],
-                'status' => 'Programmé',
-                'mutuelle' => false,
-                'notes' => $validated['notes'],
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Rendez-vous créé avec succès',
-                'appointment' => $appointment,
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        if (!$patient) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            Log::error("storeV1 error: " . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur création rendez-vous',
-                'error' => $e->getMessage(),
-            ], 500);
+                'message' => 'Patient non trouvé ou archivé',
+            ], 404);
         }
+
+        // Determine payment based on patient's mutuelle and appointment type
+        $mutuelle = false;
+        $payment = 300; // default
+
+        if ($validated['type'] === 'Control') {
+            $payment = 0;
+        } else {
+            $mutuelleStr = strtoupper($patient->mutuelle ?? '');
+            if ($mutuelleStr === 'ONE') {
+                $mutuelle = true;
+                $payment = 50;
+            } elseif ($mutuelleStr === 'AUCUN') {
+                $mutuelle = false;
+                $payment = 250;
+            }
+        }
+
+        $appointment = Appointment::create([
+            'ID_patient' => $validated['patient_id'],
+            'type' => $validated['type'],
+            'appointment_date' => $validated['appointment_date'],
+            'status' => 'Programmé',
+            'mutuelle' => $mutuelle,
+            'payement' => $payment,
+            'notes' => $validated['notes'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rendez-vous créé avec succès',
+            'appointment' => $appointment,
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation failed',
+            'errors' => $e->errors(),
+        ], 422);
+    } catch (\Exception $e) {
+        Log::error("storeV1 error: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur création rendez-vous',
+            'error' => $e->getMessage(),
+        ], 500);
     }
+}
+
 
     /**
      * POST /api/appointments (create — full version)
      */
-    public function store(Request $request)
-    {
-        try {
-            $validator = Validator::make($request->all(), [
-                'patient_id' => 'required|exists:patients,ID_patient',
-            ]);
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Le patient sélectionné n\'existe pas',
-                    'errors' => $validator->errors(),
-                ], 422);
-            }
+public function store(Request $request)
+{
+    try {
+        $validator = Validator::make($request->all(), [
+            'patient_id' => 'required|exists:patients,ID_patient',
+        ]);
 
-            $validated = $request->validate([
-                'patient_id' => 'required|exists:patients,ID_patient',
-                'appointment_type' => 'required|in:consultation,controle',
-                'appointment_date_hidden' => 'required|date_format:Y-m-d',
-                'patient_notes' => 'nullable|string',
-            ]);
-
-            $patient = Patient::find($validated['patient_id']);
-            if (!$patient) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Patient introuvable',
-                ], 404);
-            }
-
-            $formattedDate = Carbon::createFromFormat('Y-m-d', $validated['appointment_date_hidden'])
-                ->setTime(12, 0, 0);
-
-            $appointment = Appointment::create([
-                'ID_patient' => $validated['patient_id'],
-                'appointment_type' => $validated['appointment_type'],
-                'appointment_date' => $formattedDate,
-                'description' => $validated['patient_notes'] ?? '',
-                'status' => 'Programmé',
-                'diagnostic' => '',
-                'mutuelle' => false,
-            ]);
-
-            if (!empty($validated['patient_notes'])) {
-                $patient->notes = $validated['patient_notes'];
-                $patient->save();
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Rendez-vous ajouté avec succès pour ' . $patient->name,
-                'appointment' => $appointment,
-            ]);
-        } catch (\Exception $e) {
-            Log::error("store error: " . $e->getMessage());
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création du rendez-vous',
-                'error' => $e->getMessage(),
-            ], 500);
+                'message' => 'Le patient sélectionné n\'existe pas',
+                'errors' => $validator->errors(),
+            ], 422);
         }
+
+        $validated = $request->validate([
+            'patient_id' => 'required|exists:patients,ID_patient',
+            'appointment_type' => 'required|in:consultation,controle',
+            'appointment_date_hidden' => 'required|date_format:Y-m-d',
+            'patient_notes' => 'nullable|string',
+            'mutuelle' => 'nullable|string', // added this line
+        ]);
+
+        $patient = Patient::find($validated['patient_id']);
+        if (!$patient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Patient introuvable',
+            ], 404);
+        }
+
+        $formattedDate = Carbon::createFromFormat('Y-m-d', $validated['appointment_date_hidden'])
+            ->setTime(12, 0, 0);
+
+        // ✅ Determine payment amount
+        $payment = 300; // default
+        $mutuelle = strtolower($validated['mutuelle'] ?? ''); // handle null safely
+
+        if ($mutuelle === 'one') {
+            $payment = 50;
+        } elseif ($mutuelle === 'aucun') {
+            $payment = 250;
+        }
+
+        // ✅ Create the appointment
+        $appointment = Appointment::create([
+            'ID_patient' => $validated['patient_id'],
+            'appointment_type' => $validated['appointment_type'],
+            'appointment_date' => $formattedDate,
+            'description' => $validated['patient_notes'] ?? '',
+            'status' => 'Programmé',
+            'diagnostic' => '',
+            'mutuelle' => $mutuelle,
+            'payment' => $payment, // added payment
+        ]);
+
+        if (!empty($validated['patient_notes'])) {
+            $patient->notes = $validated['patient_notes'];
+            $patient->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rendez-vous ajouté avec succès pour ' . $patient->name,
+            'appointment' => $appointment,
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error("store error: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la création du rendez-vous',
+            'error' => $e->getMessage(),
+        ], 500);
     }
+}
 
     /**
      * POST /api/appointments/{id}/add-control
@@ -722,4 +764,236 @@ if (!empty($caseData)) {
             ], 500);
         }
     }
+    /**
+ * PUT /api/appointments/{id}
+ * Update an existing appointment
+ */
+public function update(Request $request, $id)
+{
+    try {
+        $appointment = Appointment::findOrFail($id);
+
+        $validated = $request->validate([
+            'type' => 'nullable|string|in:Consultation,Control',
+            'appointment_date' => 'nullable|date|after_or_equal:today',
+            'diagnostic' => 'nullable|string|max:1000',
+            'notes' => 'nullable|string|max:1000',
+            'status' => 'nullable|string|in:Programmé,Salle dattente,En préparation,En consultation,Terminé,Annulé',
+        ]);
+
+        if (isset($validated['type'])) {
+            $appointment->type = $validated['type'];
+        }
+
+        if (isset($validated['appointment_date'])) {
+            $appointment->appointment_date = $validated['appointment_date'];
+        }
+
+        if (isset($validated['diagnostic'])) {
+            $appointment->diagnostic = $validated['diagnostic'];
+        }
+
+        if (isset($validated['notes'])) {
+            $appointment->notes = $validated['notes'];
+        }
+
+        if (isset($validated['status'])) {
+            $appointment->status = $validated['status'];
+        }
+
+        $appointment->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rendez-vous mis à jour avec succès',
+            'appointment' => $appointment,
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation failed',
+            'errors' => $e->errors(),
+        ], 422);
+    } catch (\Exception $e) {
+        Log::error("updateAppointment error: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la mise à jour du rendez-vous',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
+/**
+ * DELETE /api/appointments/{id}
+ * Delete an appointment
+ */
+public function destroy($id)
+{
+    try {
+        $appointment = Appointment::findOrFail($id);
+        $appointment->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rendez-vous supprimé avec succès',
+        ]);
+    } catch (\Exception $e) {
+        Log::error("deleteAppointment error: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la suppression du rendez-vous',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
+
+
+
+public function quickAddAppointment(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'patient_id' => 'required|integer|exists:patients,ID_patient',
+            'days_from_now' => 'required|integer|min:0',
+        ]);
+
+        $patient = Patient::where('ID_patient', $validated['patient_id'])
+            ->where('archived', false)
+            ->first();
+
+        if (!$patient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Patient non trouvé ou archivé',
+            ], 404);
+        }
+
+        // Calculate the appointment date
+        $appointmentDate = Carbon::today()->addDays($validated['days_from_now']);
+
+        // Skip Saturday (6) and Sunday (0)
+        while (in_array($appointmentDate->dayOfWeek, [Carbon::SUNDAY])) {
+            $appointmentDate->addDay();
+        }
+
+        // Create the control appointment
+        $appointment = Appointment::create([
+            'ID_patient' => $patient->ID_patient,
+            'type' => 'Control',
+            'appointment_date' => $appointmentDate->toDateString(),
+            'status' => 'Programmé',
+            'mutuelle' => false,
+            'payement' => 0, // Control appointments are free
+            'notes' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rendez-vous de contrôle ajouté avec succès',
+            'appointment' => $appointment,
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation failed',
+            'errors' => $e->errors(),
+        ], 422);
+    } catch (\Exception $e) {
+        Log::error("quickAddAppointment error: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur création rendez-vous',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
+public function countAppointmentsByDate($date)
+{
+    try {
+        // Make sure the date format is valid
+        $parsedDate = \Carbon\Carbon::createFromFormat('Y-m-d', $date);
+
+        // Count appointments for that day
+        $count = Appointment::whereDate('appointment_date', $parsedDate)->count();
+
+        return response()->json([
+            'success' => true,
+            'date' => $parsedDate->format('Y-m-d'),
+            'count' => $count,
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors du calcul du nombre de rendez-vous',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
+public function getLastMedicamentsByPatient($patientId)
+{
+    try {
+        if (!is_numeric($patientId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid patient ID',
+            ], 400);
+        }
+
+        // Get latest appointment that has medicaments
+        $appointment = Appointment::where('ID_patient', $patientId)
+            ->with(['medicaments' => function ($q) {
+                $q->withPivot('dosage', 'frequence', 'duree');
+            }])
+            ->orderBy('appointment_date', 'desc')
+            ->first();
+
+        if (!$appointment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No appointment found for this patient',
+            ], 404);
+        }
+
+        if ($appointment->medicaments->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The last appointment has no medicaments',
+            ], 404);
+        }
+
+        // Reformat medicaments nicely
+        $medicaments = $appointment->medicaments->map(function ($med) {
+            return [
+                'id' => $med->ID_Medicament,
+                'name' => $med->name,
+                'dosage' => $med->pivot->dosage,
+                'frequence' => $med->pivot->frequence,
+                'duree' => $med->pivot->duree,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'date' => $appointment->appointment_date,
+            'medicaments' => $medicaments,
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error("getLastMedicamentsByPatient error: " . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Server error',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
+
+
+
 }

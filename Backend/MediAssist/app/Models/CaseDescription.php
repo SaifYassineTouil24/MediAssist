@@ -20,6 +20,10 @@ class CaseDescription extends Model
         'blood_pressure',
         'tall',
         'spo2',
+        'K',
+        'P',
+        'Sang',
+        'Glycimide',
         'notes',
         'ID_RV',
     ];

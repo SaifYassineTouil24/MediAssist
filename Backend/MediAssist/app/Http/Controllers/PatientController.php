@@ -32,7 +32,7 @@ class PatientController extends Controller
 
         $patients = Patient::with(['lastAppointment', 'nextAppointment'])
             ->where('archived', $showArchived)
-            ->orderBy('name')
+            ->orderBy('first_name')
             ->paginate(30);
 
         return response()->json($patients);
@@ -41,13 +41,14 @@ class PatientController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255', 
             'birth_day' => 'required|date',
             'gender' => 'required|in:Male,Female',
             'CIN' => 'required|string|max:255|unique:patients,CIN',
             'phone_num' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
-            'mutuelle' => 'nullable|in:CNSS,CNOPS',
+            'mutuelle' => 'nullable|string',
             'allergies' => 'nullable|string',
             'chronic_conditions' => 'nullable|string',
             'notes' => 'nullable|string',
@@ -69,13 +70,14 @@ class PatientController extends Controller
         $patient = Patient::findOrFail($id);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'birth_day' => 'required|date',
             'gender' => 'required|in:Male,Female',
             'CIN' => 'required|string|max:255|unique:patients,CIN,' . $id . ',ID_patient',
             'phone_num' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
-            'mutuelle' => 'nullable|in:CNSS,CNOPS',
+            'mutuelle' => 'nullable|string',
             'allergies' => 'nullable|string',
             'chronic_conditions' => 'nullable|string',
             'notes' => 'nullable|string',
@@ -123,7 +125,8 @@ class PatientController extends Controller
         $patients = Patient::query()
             ->where('archived', $showArchived)
             ->where(function ($query) use ($term) {
-                $query->where('name', 'LIKE', "%{$term}%")
+                $query->where('first_name', 'LIKE', "%{$term}%")
+                    ->orWhere('last_name', 'LIKE',"%{$term}%")
                     ->orWhere('CIN', 'LIKE', "%{$term}%")
                     ->orWhere('phone_num', 'LIKE', "%{$term}%")
                     ->orWhere('email', 'LIKE', "%{$term}%");
@@ -131,7 +134,8 @@ class PatientController extends Controller
             ->with(['lastAppointment', 'nextAppointment'])
             ->select([
                 'ID_patient as id',
-                'name',
+                'first_name',
+                'last_name',
                 'birth_day',
                 'CIN as cin',
                 'phone_num as phone',
@@ -139,13 +143,14 @@ class PatientController extends Controller
                 'gender',
                 'archived'
             ])
-            ->orderBy('name')
+            ->orderBy('first_name')
             ->limit(15)
             ->get()
             ->map(function ($patient) {
                 return [
                     'id' => $patient->id,
-                    'name' => $patient->name,
+                    'first_name' => $patient->first_name,
+                    'last_name' => $patient->last_name,
                     'cin' => $patient->cin,
                     'phone' => $patient->phone,
                     'email' => $patient->email,
@@ -173,7 +178,8 @@ class PatientController extends Controller
             return response()->json([]);
         }
 
-        $patients = Patient::where('name', 'LIKE', "%{$term}%")
+        $patients = Patient::where('first_name', 'LIKE', "%{$term}%")
+            ->orWhere('last_name', 'LIKE', "%{$term}%")
             ->orWhere('CIN', 'LIKE', "%{$term}%")
             ->where('archived', false)
             ->select('ID_patient as id', 'name')

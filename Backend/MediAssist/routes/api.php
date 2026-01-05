@@ -8,6 +8,8 @@ use App\Http\Controllers\MedicamentController;
 use App\Http\Controllers\AnalysisController;
 use App\Http\Controllers\MedecinController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CertificateController;
+
 
 
 
@@ -30,8 +32,13 @@ Route::middleware('api')->group(function () {
         Route::post('/', [AppointmentController::class, 'store']);
         Route::post('/v1', [AppointmentController::class, 'storeV1']);
         Route::post('/{id}/add-control', [AppointmentController::class, 'addControl']);
+        Route::put('/{id}', [AppointmentController::class, 'update']);
+        Route::delete('/{id}', [AppointmentController::class, 'destroy']);
+        Route::post('/quick-add', [AppointmentController::class, 'quickAddAppointment']);
+        Route::get('/count/{date}', [AppointmentController::class, 'countAppointmentsByDate']);
+        
     });
-    
+
     Route::get('/patients/search', [AppointmentController::class, 'search']);
 });
 
@@ -40,11 +47,13 @@ Route::prefix('patients')->group(function () {
     Route::get('/', [PatientController::class, 'index']);          // GET list of patients (with pagination, supports ?archived=true)
     Route::get('/search', [PatientController::class, 'search']);   // GET /patients/search?term=...
     Route::get('/search-v2', [PatientController::class, 'searchV2']); // Optional lightweight search
-    
+
     Route::post('/', [PatientController::class, 'store']);         // POST create new patient
     Route::get('/{id}', [PatientController::class, 'show']);       // GET single patient details
     Route::put('/{id}', [PatientController::class, 'update']);     // PUT full update
     Route::patch('/{id}/archive', [PatientController::class, 'archive']); // PATCH archive/unarchive
+    Route::get('/{id}/last-medicaments', [AppointmentController::class, 'getLastMedicamentsByPatient']);
+
 });
 
 // MEDICAMENTS
@@ -83,3 +92,12 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/user', [AuthController::class, 'user'])->middleware('auth:sanctum');
+
+
+
+Route::prefix('certificates')->group(function () {
+    Route::get('/patient/{patientId}', [CertificateController::class, 'index']);
+    Route::get('/{certificate}', [CertificateController::class, 'show']);
+    Route::post('/', [CertificateController::class, 'store']);
+    Route::delete('/{certificate}', [CertificateController::class, 'destroy']);
+});

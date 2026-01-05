@@ -20,6 +20,10 @@ return new class extends Migration
             $table->string('blood_pressure')->nullable();
             $table->float('tall')->nullable();
             $table->float('spo2')->nullable();
+            $table->string('K')->nullable();
+            $table->string('P')->nullable();
+            $table->string('Sang')->nullable();
+            $table->float('Glycimide')->nullable();
             $table->text('notes')->nullable();
             $table->unsignedBigInteger('ID_RV');
             $table->foreign('ID_RV')->references('ID_RV')->on('appointments')->onDelete('cascade');

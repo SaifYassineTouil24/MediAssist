@@ -1,1 +1,15 @@
-Frontend.zip
+# Laravel
+/vendor
+/node_modules
+/.env
+/storage/*.key
+/public/storage
+/database/*.sqlite
+/bootstrap/cache/*.php
+
+# Next.js
+/frontend/.next
+/frontend/node_modules
+
+# Docker
+docker-compose.override.yml

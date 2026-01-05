@@ -4,197 +4,195 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Patient;
-use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Carbon;
+use Carbon\Carbon;
 
 class MedecinController extends Controller
 {
     public function dashboard()
     {
         try {
-            $tomorrow = now()->addDay()->format('Y-m-d');
 
-$tomorrowAppointments = Appointment::with('patient')
-    ->whereDate('appointment_date', $tomorrow)
-    ->get();
             $today = now()->format('Y-m-d');
 
-            $currentPatient = Appointment::with(['patient', 'caseDescription', 'medicaments', 'analyses'])
+            // =========================
+            // CURRENT PATIENT
+            // =========================
+            $currentPatient = Appointment::with('patient')
                 ->where('status', 'En consultation')
                 ->whereDate('appointment_date', $today)
                 ->latest()
                 ->first();
 
-            $viewingPatientId = Session::get('viewing_patient_id');
-            $viewingMode = Session::get('viewing_mode', false);
-
-            if ($viewingMode && $viewingPatientId) {
-                $viewingPatient = Appointment::with('patient', 'caseDescription', 'medicaments', 'analyses')
-                    ->whereDate('appointment_date', $today)
-                    ->find($viewingPatientId);
-
-                if ($viewingPatient) {
-                    $currentPatient = $viewingPatient;
-                }
-            } elseif (!$currentPatient) {
-                $currentPatient = Appointment::with('patient', 'caseDescription', 'medicaments', 'analyses')
-                    ->where('status', 'Terminé')
-                    ->whereDate('appointment_date', $today)
-                    ->latest()
-                    ->first();
-            }
-
-            $lastAppointment = null;
-            if ($currentPatient && $currentPatient->patient) {
-                $patientAppointments = $currentPatient->patient->Appointment()
-                    ->with(['caseDescription', 'medicaments', 'analyses'])
-                    ->orderBy('appointment_date', 'desc')
-                    ->get();
-
-                $lastAppointment = $patientAppointments->first();
-            }
-
+            // =========================
+            // WAITING
+            // =========================
             $waitingPatients = Appointment::with('patient')
                 ->where('status', 'Salle dattente')
                 ->whereDate('appointment_date', $today)
-                ->latest()
+                ->orderBy('created_at', 'asc')
                 ->get();
 
+            // =========================
+            // PREPARING
+            // =========================
             $preparingPatients = Appointment::with('patient')
                 ->where('status', 'En préparation')
                 ->whereDate('appointment_date', $today)
-                ->latest()
+                ->orderBy('updated_at', 'asc')
                 ->get();
 
-            $completedTodayPatients = Appointment::with('patient')
+            // =========================
+            // COMPLETED
+            // =========================
+            $completedPatients = Appointment::with('patient')
                 ->where('status', 'Terminé')
                 ->whereDate('appointment_date', $today)
-                ->latest('updated_at')
+                ->orderBy('updated_at', 'desc')
                 ->get();
 
-            $averageTime = $this->calculateAverageTime($completedTodayPatients);
+            // =========================
+            // CANCELLED
+            // =========================
+            $cancelledPatients = Appointment::with('patient')
+                ->where('status', 'Annulé')
+                ->whereDate('appointment_date', $today)
+                ->orderBy('updated_at', 'desc')
+                ->get();
+
+            // =========================
+            // UPCOMING APPOINTMENTS
+            // =========================
+            $upcomingAppointments = Appointment::with('patient')
+                ->whereDate('appointment_date', '>', $today)
+                ->orderBy('appointment_date', 'asc')
+                ->limit(10)
+                ->get();
+
+            // =========================
+            // COUNTS
+            // =========================
             $totalPatients = Patient::count();
+
             $todayPatients = Appointment::whereDate('appointment_date', $today)->count();
+
             $activeAppointments = Appointment::whereDate('appointment_date', $today)
                 ->whereIn('status', ['Salle dattente', 'En préparation', 'En consultation'])
                 ->count();
 
+            // =========================
+            // AVERAGE CONSULTATION TIME
+            // =========================
+            $averageConsultationTime = $this->computeAverageConsultationTime($completedPatients);
+
+            // =========================
+            // REVENUE (BASED ON payement FIELD)
+            // =========================
+            $dailyRevenue = $completedPatients->sum('payement');
+
+            $completedRevenue = $completedPatients->sum('payement');
+
+            $pendingRevenue = Appointment::whereDate('appointment_date', $today)
+                ->whereIn('status', ['Salle dattente', 'En préparation', 'En consultation'])
+                ->sum('payement');
+
+            // =========================
+            // PAYMENT BREAKDOWN
+            // (Values stored in "mutuelle" field)
+            // =========================
+            $paymentBreakdown = [
+                'cash'     => $completedPatients->where('mutuelle', 'Espèces')->sum('payement'),
+                'card'     => $completedPatients->where('mutuelle', 'Carte')->sum('payement'),
+                'cheque'   => $completedPatients->where('mutuelle', 'Chèque')->sum('payement'),
+                'mutuelle' => $completedPatients->where('mutuelle', 'Mutuelle')->sum('payement'),
+                'pending'  => $pendingRevenue
+            ];
+
+            // =========================
+            // REVENUE BY CONSULTATION TYPE
+            // =========================
+            $revenueByType = [];
+
+            foreach ($completedPatients as $appointment) {
+
+                $type = $appointment->type ?? 'Autre';
+
+                if (!isset($revenueByType[$type])) {
+                    $revenueByType[$type] = [
+                        'count' => 0,
+                        'amount' => 0
+                    ];
+                }
+
+                $revenueByType[$type]['count']++;
+                $revenueByType[$type]['amount'] += $appointment->payement ?? 0;
+            }
+
+            // =========================
+            // STATUS COUNTS FOR CHART
+            // =========================
+            $statusCounts = [
+                'waiting'     => $waitingPatients->count(),
+                'preparing'   => $preparingPatients->count(),
+                'consulting'  => $currentPatient ? 1 : 0,
+                'completed'   => $completedPatients->count(),
+                'cancelled'   => $cancelledPatients->count(),
+            ];
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'currentPatient' => $currentPatient,
-                    'lastAppointment' => $lastAppointment,
-                    'waitingPatients' => $waitingPatients,
-                    'preparingPatients' => $preparingPatients,
-                    'completedTodayPatients' => $completedTodayPatients,
-                    'averageTime' => $averageTime,
-                    'totalPatients' => $totalPatients,
-                    'todayPatients' => $todayPatients,
-                    'activeAppointments' => $activeAppointments,
-                    'viewingMode' => $viewingMode,
+                    'totalPatients'          => $totalPatients,
+                    'todayPatients'          => $todayPatients,
+                    'activeAppointments'     => $activeAppointments,
+
+                    'currentPatient'         => $currentPatient,
+                    'waitingPatients'        => $waitingPatients,
+                    'preparingPatients'      => $preparingPatients,
+                    'completedPatients'      => $completedPatients,
+                    'cancelledPatients'      => $cancelledPatients,
+                    'upcomingAppointments'   => $upcomingAppointments,
+
+                    'averageConsultationTime'=> $averageConsultationTime,
+
+                    'dailyRevenue'           => $dailyRevenue,
+                    'completedRevenue'       => $completedRevenue,
+                    'pendingRevenue'         => $pendingRevenue,
+
+                    'paymentBreakdown'       => $paymentBreakdown,
+                    'revenueByType'          => $revenueByType,
+
+                    'statusCounts'           => $statusCounts,
                 ]
             ]);
+
         } catch (\Exception $e) {
-            Log::error('Erreur dans MedecinController@dashboard: ' . $e->getMessage());
+
+            Log::error("Dashboard error: ".$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du chargement du dashboard',
-                'error' => $e->getMessage()
+                'message' => "Erreur lors du chargement du dashboard",
+                'error'   => $e->getMessage()
             ], 500);
         }
     }
 
-    private function calculateAverageTime($appointments)
+
+    private function computeAverageConsultationTime($appointments)
     {
         if ($appointments->isEmpty()) return 0;
 
-        $totalMinutes = $appointments->sum(function ($appointment) {
-            $start = $appointment->start_time ?? $appointment->created_at;
-            $end = $appointment->end_time ?? $appointment->updated_at;
-            return $end->diffInMinutes($start);
-        });
+        $total = 0;
 
-        return round($totalMinutes / $appointments->count());
-    }
+        foreach ($appointments as $appointment) {
 
-    public function updateStatus(Request $request)
-    {
-        try {
-            $appointment = Appointment::findOrFail($request->appointment_id);
+            $start = $appointment->created_at;
+            $end   = $appointment->updated_at;
 
-            if ($request->status === 'consulting') {
-                $activeConsultation = Appointment::where('status', 'En consultation')
-                    ->where('ID_RV', '!=', $appointment->ID_RV)
-                    ->first();
-
-                if ($activeConsultation) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Il y a déjà un patient en consultation (' . $activeConsultation->patient->name . ').'
-                    ], 409);
-                }
-            }
-
-            $statusMap = [
-    'completed' => 'Terminé',
-    'Terminé' => 'Terminé',
-    'canceled' => 'Annulé',
-    'Annulé' => 'Annulé',
-    'preparing' => 'En préparation',
-    'consulting' => 'En consultation'
-];
-
-            $appointment->status = $statusMap[$request->status] ?? $request->status;
-            $appointment->save();
-
-            Session::forget('viewing_patient_id');
-            Session::forget('viewing_mode');
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Statut mis à jour avec succès'
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Erreur dans MedecinController@updateStatus: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la mise à jour du statut',
-                'error' => $e->getMessage()
-            ], 500);
+            $total += $end->diffInMinutes($start);
         }
-    }
 
-    public function navigatePatient(Request $request)
-    {
-        // (Ton code reste identique, juste qu’il return JSON déjà → donc pas de changement ici)
-        return parent::navigatePatient($request);
-    }
-
-    public function returnToConsultation()
-    {
-        // (Ton code reste identique, il return déjà JSON → pas besoin de vue)
-        return parent::returnToConsultation();
-    }
-
-    public function getAppointmentsByDate($date)
-    {
-        try {
-            $appointments = Appointment::whereDate('appointment_date', Carbon::parse($date)->toDateString())->get();
-            return response()->json([
-                'success' => true,
-                'appointments' => $appointments
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération des rendez-vous',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return round($total / $appointments->count());
     }
 }

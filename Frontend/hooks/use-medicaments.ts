@@ -1,0 +1,191 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { apiClient } from "../lib/api"
+import type { Medicament } from "../lib/api"
+
+export function useMedicaments(showArchived = false) {
+  const [medicaments, setMedicaments] = useState<Medicament[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [total, setTotal] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [perPage, setPerPage] = useState(10)
+
+  const fetchMedicaments = useCallback(
+    async (page = 1) => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const response = await apiClient.getMedicaments(showArchived)
+
+        if (response && response.success && response.data) {
+          let medicamentsArray = []
+
+          if (Array.isArray(response.data)) {
+            medicamentsArray = response.data
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            medicamentsArray = response.data.data
+          }
+
+          if (Array.isArray(medicamentsArray)) {
+            const transformedMedicaments = medicamentsArray.map((medicament) => ({
+              ...medicament,
+              id: medicament.ID_Medicament || medicament.id,
+              price: Number(medicament.price || 0),
+              archived: Boolean(medicament.archived),
+            }))
+
+            setMedicaments(transformedMedicaments)
+            setTotal(transformedMedicaments.length)
+            setCurrentPage(1)
+            setTotalPages(1)
+          } else {
+            setError("Invalid data format received")
+            setMedicaments([])
+          }
+        } else {
+          setError("Failed to fetch medicaments - unexpected response format")
+          setMedicaments([])
+        }
+      } catch (err) {
+        setError("Network error occurred")
+        setMedicaments([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [showArchived],
+  )
+
+  const searchMedicaments = useCallback(
+    async (term: string) => {
+      if (!term.trim()) {
+        fetchMedicaments(1)
+        return
+      }
+
+      try {
+        setLoading(true)
+        setError(null)
+
+        const response = await apiClient.searchMedicaments(term, showArchived)
+
+        if (response && response.success) {
+          let searchResults = []
+
+          if (response.data) {
+            if (Array.isArray(response.data)) {
+              searchResults = response.data
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+              searchResults = response.data.data
+            } else if (typeof response.data === "object" && response.data !== null) {
+              searchResults = [response.data]
+            } else {
+              setError("Search returned unexpected data format")
+              setMedicaments([])
+              return
+            }
+          } else {
+            searchResults = []
+          }
+
+          const transformedMedicaments = searchResults.map((medicament) => ({
+            ...medicament,
+            id: medicament.ID_Medicament || medicament.id,
+            price: Number(medicament.price || 0),
+            archived: Boolean(medicament.archived),
+          }))
+
+          setMedicaments(transformedMedicaments)
+          setTotal(transformedMedicaments.length)
+          setCurrentPage(1)
+          setTotalPages(1)
+        } else {
+          setError("Search request failed")
+          setMedicaments([])
+        }
+      } catch (err) {
+        setError(`Search error: ${err.message || "Network error occurred"}`)
+        setMedicaments([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [showArchived, fetchMedicaments],
+  )
+
+  const createMedicament = async (medicamentData: any) => {
+    try {
+      const response = await apiClient.createMedicament(medicamentData)
+
+      if (response.success) {
+        fetchMedicaments() // Refresh the list
+        return { success: true }
+      } else {
+        return { success: false, message: response.message || "Failed to create medicament" }
+      }
+    } catch (err) {
+      return { success: false, message: "Network error occurred" }
+    }
+  }
+
+  const updateMedicament = async (id: number, medicamentData: any) => {
+    try {
+      const response = await apiClient.updateMedicament(id, medicamentData)
+
+      if (response.success) {
+        fetchMedicaments() // Refresh the list
+        return { success: true }
+      } else {
+        return { success: false, message: response.message || "Failed to update medicament" }
+      }
+    } catch (err) {
+      return { success: false, message: "Network error occurred" }
+    }
+  }
+
+  const toggleArchiveStatus = async (medicamentId: number) => {
+    try {
+      const medicament = medicaments.find((m) => m.ID_Medicament === medicamentId || m.id === medicamentId)
+      if (!medicament) return { success: false, message: "Medicament not found" }
+
+      let response
+      if (medicament.archived) {
+        response = await apiClient.restoreMedicament(medicamentId)
+      } else {
+        response = await apiClient.archiveMedicament(medicamentId)
+      }
+
+      if (response.success) {
+        await fetchMedicaments(1)
+        return { success: true, message: response.data?.message }
+      } else {
+        return { success: false, message: response.message || "Failed to update medicament status" }
+      }
+    } catch (err) {
+      return { success: false, message: "Network error occurred" }
+    }
+  }
+
+  useEffect(() => {
+    fetchMedicaments(1)
+  }, [showArchived, fetchMedicaments])
+
+  return {
+    medicaments,
+    loading,
+    error,
+    total,
+    currentPage,
+    totalPages,
+    perPage,
+    fetchMedicaments,
+    searchMedicaments,
+    createMedicament,
+    updateMedicament,
+    toggleArchiveStatus,
+  }
+}

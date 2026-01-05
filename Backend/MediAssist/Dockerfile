@@ -1,0 +1,21 @@
+FROM php:8.2-fpm
+
+# System dependencies
+RUN apt-get update && apt-get install -y \
+    git unzip curl libpng-dev libonig-dev libxml2-dev zip libzip-dev \
+    && docker-php-ext-install pdo pdo_mysql mbstring zip exif pcntl gd
+
+# Install Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www
+
+COPY . .
+
+RUN composer install --no-dev --optimize-autoloader
+
+RUN php artisan config:clear \
+    && php artisan route:clear \
+    && php artisan view:clear
+
+CMD ["php-fpm"]
