@@ -1,15 +1,71 @@
-# Laravel
-/vendor
-/node_modules
-/.env
-/storage/*.key
-/public/storage
-/database/*.sqlite
-/bootstrap/cache/*.php
+# System Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# IDEs
+.idea/
+.vscode/
+*.sw?
+
+# Node.js / JavaScript
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+.npm/
 
 # Next.js
-/frontend/.next
-/frontend/node_modules
+.next/
+out/
+build/
+dist/
+.vercel/
 
-# Docker
-docker-compose.override.yml
+# Laravel
+/vendor/
+/node_modules/
+/public/hot
+/public/storage
+/storage/*.key
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+/Backend/MediAssist/storage/logs/
+/Backend/MediAssist/storage/framework/cache/
+/Backend/MediAssist/storage/framework/sessions/
+/Backend/MediAssist/storage/framework/testing/
+/Backend/MediAssist/storage/framework/views/
+/*.lock
+yarn.lock
+package-lock.json
+
+# Python (seen .py files)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# Personal/Large Media Files
+*.mp4
+*.mkv
+*.avi
+*.iso
+*.exe
+*.zip
+*.tar.gz
+*.rar
+
+# Specific MediAssist Paths
+**/node_modules/
+**/vendor/
+**/.env
+**/.next/
+**/.git
+**/.gitignore

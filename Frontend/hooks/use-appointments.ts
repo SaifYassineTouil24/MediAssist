@@ -49,19 +49,19 @@ export function useAppointments(selectedDate?: string) {
     return keyMap[key] || "scheduled"
   }
 
-  const fetchAppointments = useCallback(async (date?: string) => {
+  const fetchAppointments = useCallback(async (date?: string, forceRefresh = false) => {
     try {
       const cacheKey = date || "default"
-      if (cacheRef.current.has(cacheKey)) {
+      if (!forceRefresh && cacheRef.current.has(cacheKey)) {
         setAppointments(cacheRef.current.get(cacheKey)!)
         setLoading(false)
         return
       }
 
-      setLoading(true)
+      if (!forceRefresh) setLoading(true)
       setError(null)
 
-      const response = await apiClient.getAppointments(date)
+      const response = await apiClient.getAppointments(date, forceRefresh)
 
       if (response.success && response.data) {
         const grouped: GroupedAppointments = {
@@ -85,14 +85,15 @@ export function useAppointments(selectedDate?: string) {
 
         cacheRef.current.set(cacheKey, grouped)
         setAppointments(grouped)
+        setLoading(false)
       } else {
         const errorMsg = response.message || "Failed to fetch appointments"
         setError(`${errorMsg}${response.error ? ` (${response.error})` : ""}`)
+        setLoading(false)
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred"
       setError(`Connection failed: ${errorMessage}. Please check if the Laravel backend is running.`)
-    } finally {
       setLoading(false)
     }
   }, [])
@@ -221,6 +222,12 @@ export function useAppointments(selectedDate?: string) {
 
   useEffect(() => {
     fetchAppointments(selectedDate)
+
+    const intervalId = setInterval(() => {
+      fetchAppointments(selectedDate, true)
+    }, 3000) // Poll every 3 seconds
+
+    return () => clearInterval(intervalId)
   }, [fetchAppointments, selectedDate])
 
   return {

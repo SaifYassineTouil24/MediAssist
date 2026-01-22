@@ -5,23 +5,24 @@ import { useState, useEffect, createContext, useCallback, useMemo, useRef } from
 import PatientCard from "../components/patient-card"
 import AppointmentCalendar from "../components/appointment-calendar"
 import { useAppointments } from "../hooks/use-appointments"
+import { Appointment } from "@/lib/api"
 import { useGlobalSync } from "@/hooks/use-global-sync"
 import EditAppointmentModal from "@/components/edit-appointment-modal"
 import IconComponent from "@/components/icon-component"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const AppContext = createContext<any>(null)
 
-interface Appointment {
-  ID_RV: number
-  ID_patient: number
-  type: string
-  mutuelle: boolean
-  status: string
-  patient: {
-    first_name: string
-    last_name: string
-  }
-}
+
 
 interface AppointmentsByStatus {
   scheduled: Appointment[]
@@ -36,9 +37,10 @@ const STATUSES = ["scheduled", "waiting", "preparing", "consulting", "completed"
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0])
-  const [editingAppointmentId, setEditingAppointmentId] = useState<number | null>(null)
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
+  const [deletingAppointmentId, setDeletingAppointmentId] = useState<number | null>(null)
   const [renderKey, setRenderKey] = useState(0)
-  
+
   // État local géré manuellement
   const [localData, setLocalData] = useState<AppointmentsByStatus>({
     scheduled: [],
@@ -48,20 +50,20 @@ const Dashboard = () => {
     completed: [],
     canceled: [],
   })
-  
-  const { 
-    appointments: serverData, 
-    loading, 
-    error, 
-    updateAppointmentStatus, 
-    toggleMutuelle, 
-    deleteAppointment, 
-    refetch 
+
+  const {
+    appointments: serverData,
+    loading,
+    error,
+    updateAppointmentStatus,
+    toggleMutuelle,
+    deleteAppointment,
+    refetch
   } = useAppointments(selectedDate)
 
   // Sync server data to local state
   const lastServerDataRef = useRef<string>("")
-  
+
   useEffect(() => {
     if (serverData) {
       const serverDataStr = JSON.stringify(serverData)
@@ -88,9 +90,8 @@ const Dashboard = () => {
 
   const showNotification = useCallback((message: string, type: "success" | "error") => {
     const el = document.createElement("div")
-    el.className = `fixed top-4 right-4 p-4 rounded-md shadow-lg ${
-      type === "error" ? "bg-red-500" : "bg-green-500"
-    } text-white max-w-md z-[9999]`
+    el.className = `fixed top-4 right-4 p-4 rounded-md shadow-lg ${type === "error" ? "bg-red-500" : "bg-green-500"
+      } text-white max-w-md z-[9999]`
     el.textContent = message
     document.body.appendChild(el)
     setTimeout(() => el.remove(), 3000)
@@ -101,32 +102,32 @@ const Dashboard = () => {
     setLocalData(prev => {
       const fromKey = fromStatus as keyof AppointmentsByStatus
       const toKey = toStatus as keyof AppointmentsByStatus
-      
+
       const fromList = prev[fromKey] || []
       const toList = prev[toKey] || []
-      
+
       const idx = fromList.findIndex(a => a.ID_RV === appointmentId)
       if (idx === -1) {
         console.log("Appointment not found in source:", appointmentId, fromStatus)
         return prev
       }
-      
+
       const item = fromList[idx]
       const newFromList = fromList.filter((_, i) => i !== idx)
       const newToList = [...toList, { ...item, status: toStatus }]
-      
+
       const newState = {
         ...prev,
         [fromKey]: newFromList,
         [toKey]: newToList,
       }
-      
+
       console.log("Moved appointment:", appointmentId, "from", fromStatus, "to", toStatus)
       console.log("New state:", newState)
-      
+
       return newState
     })
-    
+
     // Force re-render
     setRenderKey(k => k + 1)
   }, [])
@@ -148,32 +149,32 @@ const Dashboard = () => {
     const handleDragStart = (e: DragEvent) => {
       const target = e.target as HTMLElement
       const card = target.closest("[data-appointment-id]") as HTMLElement
-      
+
       if (!card) {
         e.preventDefault()
         return
       }
-      
+
       const id = card.getAttribute("data-appointment-id")
       const container = card.closest("[data-status]")
       const status = container?.getAttribute("data-status")
-      
+
       if (!id || !status) {
         e.preventDefault()
         return
       }
-      
+
       dragStateRef.current = {
         appointmentId: Number(id),
         sourceStatus: status,
         isDragging: true,
       }
-      
+
       e.dataTransfer?.setData("text/plain", id)
       if (e.dataTransfer) {
         e.dataTransfer.effectAllowed = "move"
       }
-      
+
       card.style.opacity = "0.5"
       console.log("Drag started:", id, "from", status)
     }
@@ -183,19 +184,19 @@ const Dashboard = () => {
       document.querySelectorAll("[data-appointment-id]").forEach(el => {
         (el as HTMLElement).style.opacity = "1"
       })
-      
+
       // Reset all container styles
       document.querySelectorAll("[data-status]").forEach(el => {
         el.classList.remove("bg-blue-100", "ring-2", "ring-blue-500")
       })
-      
+
       dragStateRef.current.isDragging = false
       console.log("Drag ended")
     }
 
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault()
-      
+
       const container = (e.target as HTMLElement).closest("[data-status]")
       if (container && dragStateRef.current.isDragging) {
         document.querySelectorAll("[data-status]").forEach(el => {
@@ -208,7 +209,7 @@ const Dashboard = () => {
     const handleDrop = async (e: DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      
+
       // Clean up styles
       document.querySelectorAll("[data-status]").forEach(el => {
         el.classList.remove("bg-blue-100", "ring-2", "ring-blue-500")
@@ -216,40 +217,40 @@ const Dashboard = () => {
       document.querySelectorAll("[data-appointment-id]").forEach(el => {
         (el as HTMLElement).style.opacity = "1"
       })
-      
+
       const { appointmentId, sourceStatus, isDragging } = dragStateRef.current
-      
+
       if (!isDragging || !appointmentId || !sourceStatus) {
         console.log("Drop cancelled - invalid state")
         return
       }
-      
+
       const container = (e.target as HTMLElement).closest("[data-status]")
       const targetStatus = container?.getAttribute("data-status")
-      
+
       if (!targetStatus) {
         console.log("Drop cancelled - no target status")
         return
       }
-      
+
       if (sourceStatus === targetStatus) {
         console.log("Drop cancelled - same status")
         dragStateRef.current = { appointmentId: null, sourceStatus: null, isDragging: false }
         return
       }
-      
+
       console.log("Processing drop:", appointmentId, sourceStatus, "->", targetStatus)
-      
+
       // Reset drag state
       dragStateRef.current = { appointmentId: null, sourceStatus: null, isDragging: false }
-      
+
       // 1. Mise à jour locale immédiate
       moveLocal(appointmentId, sourceStatus, targetStatus)
-      
+
       // 2. Appel API
       try {
         const result = await updateAppointmentStatus(appointmentId, targetStatus)
-        
+
         if (result.success) {
           showNotification("Statut mis à jour", "success")
         } else {
@@ -310,16 +311,38 @@ const Dashboard = () => {
     }
   }, [toggleMutuelle, showNotification, refetch])
 
-  const handleDelete = useCallback(async (id: number) => {
-    deleteLocal(id)
-    const result = await deleteAppointment(id)
-    if (result.success) {
-      showNotification("Supprimé", "success")
-    } else {
-      showNotification(result.message || "Erreur", "error")
-      refetch()
+  const handleDeleteClick = useCallback((id: number) => {
+    setDeletingAppointmentId(id)
+  }, [])
+
+  const handleEditClick = useCallback((id: number) => {
+    // Find the appointment in localData
+    for (const status of STATUSES) {
+      const apt = localData[status]?.find(a => a.ID_RV === id)
+      if (apt) {
+        setEditingAppointment(apt)
+        return
+      }
     }
-  }, [deleteAppointment, deleteLocal, showNotification, refetch])
+  }, [localData])
+
+  const handleConfirmDelete = async () => {
+    if (!deletingAppointmentId) return
+
+    // Optimistic delete
+    deleteLocal(deletingAppointmentId)
+
+    // API call
+    const result = await deleteAppointment(deletingAppointmentId)
+
+    if (result.success) {
+      showNotification("Rendez-vous supprimé", "success")
+    } else {
+      showNotification(result.message || "Erreur lors de la suppression", "error")
+      refetch(selectedDate, true)
+    }
+    setDeletingAppointmentId(null)
+  }
 
   const { emit: emitDateChange } = useGlobalSync("date-select", {
     onEvent: (event) => {
@@ -352,10 +375,10 @@ const Dashboard = () => {
           <div className="lg:col-span-2 grid grid-cols-2 gap-4">
             {sections.map((section) => {
               const data = localData[section.status as keyof AppointmentsByStatus] || []
-              
+
               return (
-                <div 
-                  key={section.status} 
+                <div
+                  key={section.status}
                   className="bg-white rounded-2xl shadow-[0px_8px_20px_rgba(0,0,0,0.25)] p-4"
                 >
                   <h3 className={`text-base font-semibold mb-3 pb-3 border-b border-gray-200 ${section.color} flex items-center`}>
@@ -385,8 +408,9 @@ const Dashboard = () => {
                             patientId={apt.ID_patient}
                             mutuelle={apt.mutuelle}
                             onMutuelleToggle={handleMutuelleToggle}
-                            onDelete={handleDelete}
-                            onEdit={setEditingAppointmentId}
+                            onMutuelleToggle={handleMutuelleToggle}
+                            onDelete={() => handleDeleteClick(apt.ID_RV)}
+                            onEdit={() => handleEditClick(apt.ID_RV)}
                           />
                         </div>
                       ))
@@ -404,16 +428,32 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {editingAppointmentId && (
+      {editingAppointment && (
         <EditAppointmentModal
-          appointmentId={editingAppointmentId}
-          onClose={() => setEditingAppointmentId(null)}
+          appointment={editingAppointment}
+          onClose={() => setEditingAppointment(null)}
           onSuccess={() => {
-            setEditingAppointmentId(null)
-            refetch()
+            setEditingAppointment(null)
+            refetch(selectedDate, true)
           }}
         />
       )}
+      <AlertDialog open={!!deletingAppointmentId} onOpenChange={(open) => !open && setDeletingAppointmentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Êtes-vous sûr de vouloir supprimer ce rendez-vous ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Le rendez-vous sera définitivement retiré du planning.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

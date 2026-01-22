@@ -126,15 +126,15 @@ export default function AppointmentDetailsPage() {
       const generateMedicationList = (meds: MedicationForm[]) => {
         return meds.length > 0
           ? meds
-              .map((med) => {
-                const dosage = med.pivot?.dosage ? ` - ${med.pivot.dosage}` : ""
-                const frequence = med.pivot?.frequence ? ` - ${med.pivot.frequence}` : ""
-                const duree = med.pivot?.duree ? ` - ${med.pivot.duree}` : ""
-                return `
+            .map((med) => {
+              const dosage = med.pivot?.dosage ? ` - ${med.pivot.dosage}` : ""
+              const frequence = med.pivot?.frequence ? ` - ${med.pivot.frequence}` : ""
+              const duree = med.pivot?.duree ? ` - ${med.pivot.duree}` : ""
+              return `
                   <div class="medication-item">• ${med.name || "Médicament"}${dosage}${frequence}${duree}</div>
                 `
-              })
-              .join("")
+            })
+            .join("")
           : '<div class="medication-item" style="color: #999;">Aucun médicament prescrit</div>'
       }
 
@@ -180,8 +180,7 @@ export default function AppointmentDetailsPage() {
           ${generateMedicationList(page1Medications)}
         </div>
       </div>
-      ${
-        hasMultiplePages
+      ${hasMultiplePages
           ? `
         <div class="page-break"></div>
         <div class="page">
@@ -191,7 +190,7 @@ export default function AppointmentDetailsPage() {
         </div>
       `
           : ""
-      }
+        }
     </div>
   </body>
 </html>
@@ -213,12 +212,12 @@ export default function AppointmentDetailsPage() {
   }, [medications, toast])
 
   const filteredMedicaments = useMemo(() => {
-  if (!medicationSearchQuery) return availableMedicaments
-  const query = medicationSearchQuery.toLowerCase()
-  return availableMedicaments.filter(m => 
-    m.name.toLowerCase().includes(query)
-  )
-}, [availableMedicaments, medicationSearchQuery])
+    if (!medicationSearchQuery) return availableMedicaments
+    const query = medicationSearchQuery.toLowerCase()
+    return availableMedicaments.filter(m =>
+      m.name.toLowerCase().includes(query)
+    )
+  }, [availableMedicaments, medicationSearchQuery])
 
 
   const handlePrintAnalyses = useCallback(() => {
@@ -269,16 +268,15 @@ export default function AppointmentDetailsPage() {
   <body>
     <div class="print-container">
       <div class="analysis-list">
-        ${
-          analyses.length > 0
-            ? analyses
-                .map(
-                  (analysis) => `
+        ${analyses.length > 0
+          ? analyses
+            .map(
+              (analysis) => `
                   <div class="analysis-item">• ${analysis.name || "Analyse"}</div>
                 `,
-                )
-                .join("")
-            : '<div class="analysis-item" style="color: #999;">Aucune analyse demandée</div>'
+            )
+            .join("")
+          : '<div class="analysis-item" style="color: #999;">Aucune analyse demandée</div>'
         }
       </div>
     </div>
@@ -768,8 +766,8 @@ export default function AppointmentDetailsPage() {
           </CardHeader>
           <CardContent className="p-6">
             {!lastAppointment.case_description &&
-            (!lastAppointment.medicaments || lastAppointment.medicaments.length === 0) &&
-            (!lastAppointment.analyses || lastAppointment.analyses.length === 0) ? (
+              (!lastAppointment.medicaments || lastAppointment.medicaments.length === 0) &&
+              (!lastAppointment.analyses || lastAppointment.analyses.length === 0) ? (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-sm">Aucune donnée disponible pour le rendez-vous précédent</p>
               </div>
@@ -938,9 +936,8 @@ export default function AppointmentDetailsPage() {
                 <select
                   value={vitalSigns.k || ""}
                   onChange={(e) => setVitalSigns({ ...vitalSigns, k: e.target.value || null })}
-                  className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    vitalSigns.k ? getBorderColor(vitalSigns.k) : "border-gray-300 bg-gray-100 text-gray-400"
-                  }`}
+                  className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${vitalSigns.k ? getBorderColor(vitalSigns.k) : "border-gray-300 bg-gray-100 text-gray-400"
+                    }`}
                 >
                   <option value="">-- Sélectionner --</option>
                   <option value="-+">-+</option>
@@ -954,9 +951,8 @@ export default function AppointmentDetailsPage() {
                 <select
                   value={vitalSigns.p || ""}
                   onChange={(e) => setVitalSigns({ ...vitalSigns, p: e.target.value || null })}
-                  className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    vitalSigns.p ? getBorderColor(vitalSigns.p) : "border-gray-300 bg-gray-100 text-gray-400"
-                  }`}
+                  className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${vitalSigns.p ? getBorderColor(vitalSigns.p) : "border-gray-300 bg-gray-100 text-gray-400"
+                    }`}
                 >
                   <option value="">-- Sélectionner --</option>
                   <option value="-+">-+</option>
@@ -970,9 +966,8 @@ export default function AppointmentDetailsPage() {
                 <select
                   value={vitalSigns.sang || ""}
                   onChange={(e) => setVitalSigns({ ...vitalSigns, sang: e.target.value || null })}
-                  className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    vitalSigns.sang ? getBorderColor(vitalSigns.sang) : "border-gray-300 bg-gray-100 text-gray-400"
-                  }`}
+                  className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${vitalSigns.sang ? getBorderColor(vitalSigns.sang) : "border-gray-300 bg-gray-100 text-gray-400"
+                    }`}
                 >
                   <option value="">-- Sélectionner --</option>
                   <option value="-+">-+</option>
@@ -1037,105 +1032,105 @@ export default function AppointmentDetailsPage() {
             <div className="space-y-4">
               <div className="space-y-4">
                 {medications.map((med, medIndex) => (
-  <div key={medIndex} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-lg border">
-    <div className="col-span-12 md:col-span-5">
-      <Popover
-        open={openMedicationDropdown === medIndex}
-        onOpenChange={(open) => {
-          setOpenMedicationDropdown(open ? medIndex : null)
-          if (!open) setMedicationSearchQuery("")
-        }}
-      >
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="w-full flex justify-between items-center px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-left bg-white hover:bg-gray-50"
-          >
-            <span className="text-gray-700">
-              {med.ID_Medicament
-                ? availableMedicaments.find(
-                    (m) => m.ID_Medicament.toString() === med.ID_Medicament.toString(),
-                  )?.name || med.name
-                : "Sélectionner un médicament"}
-            </span>
-            <ChevronsUpDown className="h-4 w-4 opacity-50" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0" align="start">
-          <Command shouldFilter={false}>
-            <CommandInput 
-              placeholder="Rechercher un médicament..." 
-              value={medicationSearchQuery}
-              onValueChange={setMedicationSearchQuery}
-            />
-            <CommandList>
-              <CommandEmpty>Aucun résultat trouvé.</CommandEmpty>
-              <CommandGroup className="max-h-[300px] overflow-y-auto">
-                {filteredMedicaments.slice(0, 100).map((medicament) => (
-                  <CommandItem
-                    key={medicament.ID_Medicament}
-                    onSelect={() => {
-                      updateMedication(medIndex, "ID_Medicament", medicament.ID_Medicament.toString())
-                      setOpenMedicationDropdown(null)
-                      setMedicationSearchQuery("")
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        medicament.ID_Medicament.toString() === med.ID_Medicament.toString()
-                          ? "opacity-100"
-                          : "opacity-0",
-                      )}
-                    />
-                    {medicament.name}
-                  </CommandItem>
-                ))}
-                {filteredMedicaments.length > 100 && (
-                  <div className="px-2 py-1 text-xs text-gray-500 text-center">
-                    {filteredMedicaments.length - 100} autres résultats... Affinez votre recherche
+                  <div key={medIndex} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-lg border">
+                    <div className="col-span-12 md:col-span-5">
+                      <Popover
+                        open={openMedicationDropdown === medIndex}
+                        onOpenChange={(open) => {
+                          setOpenMedicationDropdown(open ? medIndex : null)
+                          if (!open) setMedicationSearchQuery("")
+                        }}
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="w-full flex justify-between items-center px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-left bg-white hover:bg-gray-50"
+                          >
+                            <span className="text-gray-700">
+                              {med.ID_Medicament
+                                ? availableMedicaments.find(
+                                  (m) => m.ID_Medicament.toString() === med.ID_Medicament.toString(),
+                                )?.name || med.name
+                                : "Sélectionner un médicament"}
+                            </span>
+                            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <CommandInput
+                              placeholder="Rechercher un médicament..."
+                              value={medicationSearchQuery}
+                              onValueChange={setMedicationSearchQuery}
+                            />
+                            <CommandList>
+                              <CommandEmpty>Aucun résultat trouvé.</CommandEmpty>
+                              <CommandGroup className="max-h-[300px] overflow-y-auto">
+                                {filteredMedicaments.slice(0, 100).map((medicament) => (
+                                  <CommandItem
+                                    key={medicament.ID_Medicament}
+                                    onSelect={() => {
+                                      updateMedication(medIndex, "ID_Medicament", medicament.ID_Medicament.toString())
+                                      setOpenMedicationDropdown(null)
+                                      setMedicationSearchQuery("")
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        medicament.ID_Medicament.toString() === med.ID_Medicament.toString()
+                                          ? "opacity-100"
+                                          : "opacity-0",
+                                      )}
+                                    />
+                                    {medicament.name}
+                                  </CommandItem>
+                                ))}
+                                {filteredMedicaments.length > 100 && (
+                                  <div className="px-2 py-1 text-xs text-gray-500 text-center">
+                                    {filteredMedicaments.length - 100} autres résultats... Affinez votre recherche
+                                  </div>
+                                )}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <Input
+                        value={med.pivot.dosage}
+                        onChange={(e) => updateMedication(medIndex, "dosage", e.target.value)}
+                        placeholder="Dosage"
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <Input
+                        value={med.pivot.frequence}
+                        onChange={(e) => updateMedication(medIndex, "frequence", e.target.value)}
+                        placeholder="Fréquence"
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <Input
+                        value={med.pivot.duree}
+                        onChange={(e) => updateMedication(medIndex, "duree", e.target.value)}
+                        placeholder="Durée"
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-1 flex items-center justify-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeMedication(medIndex)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>
-    <div className="col-span-12 md:col-span-2">
-      <Input
-        value={med.pivot.dosage}
-        onChange={(e) => updateMedication(medIndex, "dosage", e.target.value)}
-        placeholder="Dosage"
-      />
-    </div>
-    <div className="col-span-12 md:col-span-2">
-      <Input
-        value={med.pivot.frequence}
-        onChange={(e) => updateMedication(medIndex, "frequence", e.target.value)}
-        placeholder="Fréquence"
-      />
-    </div>
-    <div className="col-span-12 md:col-span-2">
-      <Input
-        value={med.pivot.duree}
-        onChange={(e) => updateMedication(medIndex, "duree", e.target.value)}
-        placeholder="Durée"
-      />
-    </div>
-    <div className="col-span-12 md:col-span-1 flex items-center justify-center">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => removeMedication(medIndex)}
-        className="text-red-500 hover:text-red-700"
-      >
-        <Trash2 className="w-4 h-4" />
-      </Button>
-    </div>
-  </div>
-))}
+                ))}
               </div>
               <Button
                 type="button"
@@ -1189,8 +1184,8 @@ export default function AppointmentDetailsPage() {
                             <span className="text-gray-700">
                               {analysis.ID_Analyse
                                 ? availableAnalyses.find(
-                                    (a) => a.ID_Analyse.toString() === analysis.ID_Analyse.toString(),
-                                  )?.type_analyse || analysis.name
+                                  (a) => a.ID_Analyse.toString() === analysis.ID_Analyse.toString(),
+                                )?.type_analyse || analysis.name
                                 : "Sélectionner une analyse"}
                             </span>
                             <ChevronsUpDown className="h-4 w-4 opacity-50" />

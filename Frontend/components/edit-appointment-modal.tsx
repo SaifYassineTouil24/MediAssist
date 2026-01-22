@@ -8,18 +8,17 @@ import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Textarea } from "./ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
-import { apiClient } from "@/lib/api"
+import { apiClient, Appointment } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 interface EditAppointmentModalProps {
-  appointmentId: number | null
+  appointment: Appointment | null
   onClose: () => void
   onSuccess: () => void
 }
 
-export default function EditAppointmentModal({ appointmentId, onClose, onSuccess }: EditAppointmentModalProps) {
+export default function EditAppointmentModal({ appointment, onClose, onSuccess }: EditAppointmentModalProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
   const { toast } = useToast()
@@ -32,58 +31,42 @@ export default function EditAppointmentModal({ appointmentId, onClose, onSuccess
     notes: "",
   })
 
-  const fetchAppointmentData = async () => {
-    try {
-      if (!appointmentId) return
+  useEffect(() => {
+    if (appointment) {
+      setIsOpen(true)
+      setError("")
 
-      const result = await apiClient.getEditData(appointmentId)
+      let date = ""
+      let time = ""
 
-      if (result.success && result.data?.appointment) {
-        const appointment = result.data.appointment
-        let date = ""
-        let time = ""
-
-        if (appointment.appointment_date) {
-          const dateObj = new Date(appointment.appointment_date)
+      if (appointment.appointment_date) {
+        const dateObj = new Date(appointment.appointment_date)
+        date = dateObj.toISOString().split("T")[0]
+        // Extract time manually to avoid timezone issues/zero padding if needed, 
+        // but toISOString() is usually consistent for UTC. 
+        // If the date string from backend is "YYYY-MM-DD HH:mm:ss", doing new Date() might be tricky depending on browser.
+        // Let's stick to simple string parsing if it matches standard format, or Date object if robust.
+        // Existing logic used Date object, let's keep it but formatted carefully.
+        // Or better: use the date string directly if it's ISO like. 
+        // Let's trust the existing logic's intent but maybe make it safer?
+        // Actually, let's keep the existing logic exactly as it was which worked:
+        try {
           date = dateObj.toISOString().split("T")[0]
           time = dateObj.toISOString().split("T")[1]?.substring(0, 5) || ""
+        } catch (e) {
+          console.error("Error parsing date", e)
         }
-
-        setAppointmentFormData({
-          patient_id: appointment.ID_patient,
-          type: appointment.type as "Consultation" | "Control",
-          appointment_date: date,
-          appointment_time: time,
-          notes: appointment.notes || "",
-        })
-        setError("")
-        setLoading(false)
-      } else {
-        setError("Impossible de charger les données du rendez-vous")
-        setLoading(false)
       }
-    } catch (err) {
-      console.error("[v0] Error fetching appointment:", err)
-      setError("Erreur lors du chargement des données")
-      setLoading(false)
-    }
-  }
 
-  useEffect(() => {
-    if (appointmentId) {
-      setIsOpen(true)
-      setLoading(true)
-      setError("")
       setAppointmentFormData({
-        patient_id: 0,
-        type: "Consultation",
-        appointment_date: "",
-        appointment_time: "",
-        notes: "",
+        patient_id: appointment.ID_patient,
+        type: appointment.type as "Consultation" | "Control",
+        appointment_date: date,
+        appointment_time: time,
+        notes: appointment.notes || "",
       })
-      fetchAppointmentData()
     }
-  }, [appointmentId])
+  }, [appointment])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,28 +74,23 @@ export default function EditAppointmentModal({ appointmentId, onClose, onSuccess
     setError("")
 
     try {
-      if (!appointmentId) return
+      if (!appointment) return
 
-      const result = await apiClient.updateAppointment(appointmentId, appointmentFormData)
+      const result = await apiClient.updateAppointment(appointment.ID_RV, appointmentFormData)
 
       if (result.success) {
         toast({
           title: "Succès",
           description: "Rendez-vous mis à jour avec succès",
         })
-        
-        // Fermer le modal d'abord
+
         setIsOpen(false)
-        
-        // Appeler onSuccess qui va faire le refetch
         onSuccess()
-        
-        // Dispatcher l'événement APRÈS pour que les autres composants soient notifiés
-        // Utiliser un petit délai pour laisser le refetch se terminer
+
         setTimeout(() => {
           window.dispatchEvent(
             new CustomEvent("appointmentUpdated", {
-              detail: { appointmentId, updated: true },
+              detail: { appointmentId: appointment.ID_RV, updated: true },
             })
           )
         }, 100)
@@ -167,7 +145,7 @@ export default function EditAppointmentModal({ appointmentId, onClose, onSuccess
             <p className="text-sm text-red-800">{error}</p>
           </div>
         )}
-        {loading ? (
+        {false ? (
           <div className="py-8 text-center text-gray-500">Chargement...</div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

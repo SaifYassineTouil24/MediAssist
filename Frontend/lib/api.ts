@@ -12,6 +12,21 @@ const API_BASE_URL = "http://127.0.0.1:8000/api"
 const requestCache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_DURATION = 30000 // 30 seconds
 
+export interface UserProfile {
+  id: number
+  name: string
+  email: string
+  phone?: string
+  address?: string
+  specialization?: string
+  bio?: string
+  license?: string
+  experience?: string
+  education?: string
+  avatar?: string
+  role?: string
+}
+
 export interface Patient {
   ID_patient: number
   first_name: string
@@ -106,11 +121,11 @@ class ApiClient {
     this.baseURL = baseURL
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  private async request<T>(endpoint: string, options: RequestInit = {}, skipCache = false): Promise<ApiResponse<T>> {
     try {
       const url = `${this.baseURL}${endpoint}`
 
-      if (options.method === undefined || options.method === "GET") {
+      if (!skipCache && (options.method === undefined || options.method === "GET")) {
         const cached = requestCache.get(url)
         if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
           return {
@@ -122,7 +137,10 @@ class ApiClient {
 
       let headers: Record<string, string> = {
         Accept: "application/json",
-        ...options.headers,
+      }
+
+      if (options.headers) {
+        Object.assign(headers, options.headers)
       }
 
       if (options.method === "DELETE" || options.method === "POST" || options.method === "PUT") {
@@ -172,7 +190,7 @@ class ApiClient {
     }
   }
 
-  async getAppointments(date?: string): Promise<
+  async getAppointments(date?: string, skipCache = false): Promise<
     ApiResponse<{
       appointments: Appointment[]
       grouped: Record<string, Appointment[]>
@@ -181,7 +199,7 @@ class ApiClient {
     }>
   > {
     const endpoint = date ? `/appointments/${date}` : "/appointments"
-    return this.request(endpoint)
+    return this.request(endpoint, {}, skipCache)
   }
 
   async getMonthlyCounts(yearMonth: string): Promise<ApiResponse<Record<string, number>>> {
@@ -384,11 +402,17 @@ class ApiClient {
     if (response.success && response.data) {
       return {
         success: true,
-        data: response.data.data || response.data,
+        data: (response.data.data || response.data) as Medicament[],
+        message: response.message
       }
     }
 
-    return response as ApiResponse<Medicament[]>
+    return {
+      success: response.success,
+      message: response.message,
+      error: response.error,
+      data: []
+    } as ApiResponse<Medicament[]>
   }
 
   async searchAnalyses(query: string, showArchived = false): Promise<ApiResponse<Analysis[]>> {
@@ -405,11 +429,16 @@ class ApiClient {
     if (response.success && response.data) {
       return {
         success: true,
-        data: response.data.data || response.data,
+        data: (response.data.data || response.data) as Analysis[],
       }
     }
 
-    return response as ApiResponse<Analysis[]>
+    return {
+      success: response.success,
+      message: response.message,
+      error: response.error,
+      data: [] // Return empty array on error/empty to match expected type or handle gracefully
+    } as ApiResponse<Analysis[]>
   }
 
   // PDF generation endpoints
@@ -551,7 +580,7 @@ class ApiClient {
 
     console.log("[v0] createPatient - full request body:", JSON.stringify(requestBody, null, 2))
 
-    const response = this.request("/patients", {
+    const response = this.request<Patient>("/patients", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -666,11 +695,16 @@ class ApiClient {
       console.log("[v0] getMedicaments extracted data:", extractedData)
       return {
         success: true,
-        data: extractedData,
+        data: extractedData as Medicament[],
       }
     }
 
-    return response as ApiResponse<Medicament[]>
+    return {
+      success: response.success,
+      message: response.message,
+      error: response.error,
+      data: []
+    } as ApiResponse<Medicament[]>
   }
 
   async createMedicament(medicamentData: {
@@ -759,11 +793,16 @@ class ApiClient {
       console.log("[v0] getAnalyses extracted data:", extractedData)
       return {
         success: true,
-        data: extractedData,
+        data: extractedData as Analysis[],
       }
     }
 
-    return response as ApiResponse<Analysis[]>
+    return {
+      success: response.success,
+      message: response.message,
+      error: response.error,
+      data: []
+    } as ApiResponse<Analysis[]>
   }
 
   async createAnalysis(analysisData: {
@@ -792,6 +831,21 @@ class ApiClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(analysisData),
+    })
+  }
+
+  // Profile management
+  async getProfile(): Promise<ApiResponse<UserProfile>> {
+    return this.request("/user")
+  }
+
+  async updateProfile(profileData: Partial<UserProfile>): Promise<ApiResponse<{ user: UserProfile; message: string }>> {
+    return this.request("/user/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(profileData),
     })
   }
 
@@ -844,7 +898,7 @@ class ApiClient {
       }
     }>
   > {
-    const response = await this.request("/medecin/dashboard")
+    const response = await this.request("/medecin/dashboard", {}, true) // Always skip cache for dashboard
     console.log("[v0] getMedecinDashboard raw response:", JSON.stringify(response, null, 2))
 
     // Laravel might return data directly or wrapped in a data property

@@ -10,7 +10,14 @@ class Appointment extends Model
     use HasFactory;
 
     protected $table = 'appointments';
-    protected $fillable = ['appointment_date', 'type', 'status', 'mutuelle', 'payement', 'Diagnostic', 'Date_RV','updated_at', 'ID_patient'];
+    protected $fillable = ['appointment_date',        'status', 
+        'mutuelle', 
+        'payement', 
+        'Diagnostic',
+        'consultation_started_at',
+        'consultation_ended_at',
+        'updated_at',
+        'ID_patient'];
 
     protected $primaryKey = 'ID_RV';
 

@@ -58,10 +58,8 @@ export default function PatientCard({
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce rendez-vous ?")) {
-      setIsDeleting(true)
-      onDelete?.(appointmentId)
-    }
+    // Validation is now handled by the parent component via AlertDialog
+    onDelete?.(appointmentId)
   }
 
   const handleEdit = (e: React.MouseEvent) => {

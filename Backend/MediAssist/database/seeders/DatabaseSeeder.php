@@ -3,16 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\Analysis;
-
 use Illuminate\Database\Seeder;
 use App\Models\Patient;
 use App\Models\Appointment;
-use App\Models\Medicament;
-use App\Models\CompteRendu;
-use App\Models\Certificate;
-use App\Models\CaseDescription;
-use App\Models\User;
-
 
 class DatabaseSeeder extends Seeder
 {
@@ -21,16 +14,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        
-
-        // Create 50 patients
-        
-        $analysis = Analysis::factory()->count(50)->create();
-        
-
-
-
-
-
+        // Create 50 patients each with 3 appointments
+        Patient::factory()
+            ->count(50)
+            ->has(Appointment::factory()->count(3))
+            ->create();
+            
+        // Analysis::factory()->count(50)->create();
     }
 }

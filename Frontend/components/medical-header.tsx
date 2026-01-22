@@ -423,9 +423,8 @@ const MedicalHeader = () => {
       days.push(
         <div
           key={day}
-          className={`p-1 text-xs text-center rounded relative group cursor-pointer ${
-            isToday ? "bg-blue-500 text-white font-semibold" : "text-gray-700 hover:bg-gray-100"
-          }`}
+          className={`p-1 text-xs text-center rounded relative group cursor-pointer ${isToday ? "bg-blue-500 text-white font-semibold" : "text-gray-700 hover:bg-gray-100"
+            }`}
           title={count > 0 ? `${count} patient${count > 1 ? "s" : ""}` : "Aucun patient"}
         >
           <div>{day}</div>
@@ -706,7 +705,7 @@ const MedicalHeader = () => {
                         Rechercher un patient
                       </Label>
                       <div className="relative">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                           id="patientSearch"
                           placeholder="Nom du patient..."

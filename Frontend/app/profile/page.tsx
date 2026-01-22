@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { apiClient, UserProfile } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2 } from "lucide-react"
 
-// Icons
+// Icons - unchanged
 const UserIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -63,24 +66,107 @@ const EditIcon = () => (
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
-  const [profile, setProfile] = useState({
-    name: "Dr. Jean Dupont",
-    email: "jean.dupont@mediassist.com",
-    phone: "+33 1 23 45 67 89",
-    address: "123 Rue de la Santé, 75014 Paris",
-    specialization: "Médecine Générale",
-    license: "123456789",
-    experience: "15 ans",
-    education: "Université Paris Descartes - Doctorat en Médecine",
-    bio: "Médecin généraliste passionné avec plus de 15 ans d'expérience dans le domaine médical. Spécialisé dans les soins primaires et la médecine préventive.",
-    avatar: "/placeholder.svg?height=120&width=120",
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+
+  const [profile, setProfile] = useState<UserProfile>({
+    id: 0,
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    specialization: "",
+    license: "",
+    experience: "",
+    education: "",
+    bio: "",
+    avatar: "",
   })
 
-  const [editedProfile, setEditedProfile] = useState(profile)
+  // We keep a separate state for editing to allow cancellation
+  const [editedProfile, setEditedProfile] = useState<UserProfile>(profile)
 
-  const handleSave = () => {
-    setProfile(editedProfile)
-    setIsEditing(false)
+  useEffect(() => {
+    fetchProfile()
+  }, [])
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true)
+      const result = await apiClient.getProfile()
+      if (result.success && result.data) {
+        // Ensure all fields are strings (handling nulls)
+        const data = result.data
+        const sanitizedProfile: UserProfile = {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone || "",
+          address: data.address || "",
+          specialization: data.specialization || "Médecin",
+          license: data.license || "",
+          experience: data.experience || "",
+          education: data.education || "",
+          bio: data.bio || "",
+          avatar: data.avatar || "",
+        }
+        setProfile(sanitizedProfile)
+        setEditedProfile(sanitizedProfile)
+      } else {
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger le profil.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    try {
+      const result = await apiClient.updateProfile(editedProfile)
+      if (result.success && result.data?.user) {
+        const data = result.data.user
+        const sanitizedProfile: UserProfile = {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone || "",
+          address: data.address || "",
+          specialization: data.specialization || "Médecin",
+          license: data.license || "",
+          experience: data.experience || "",
+          education: data.education || "",
+          bio: data.bio || "",
+          avatar: data.avatar || "",
+        }
+        setProfile(sanitizedProfile)
+        setEditedProfile(sanitizedProfile) // Sync edited state
+        setIsEditing(false)
+        toast({
+          title: "Succès",
+          description: "Profil mis à jour avec succès.",
+        })
+        // Force refresh to update header name if changed (optional, requires context or reload)
+        // window.location.reload() // A bit aggressive, avoid if possible
+      } else {
+        toast({
+          title: "Erreur",
+          description: result.message || "Erreur lors de la sauvegarde.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleCancel = () => {
@@ -91,9 +177,17 @@ export default function ProfilePage() {
   const stats = [
     { label: "Patients traités", value: "1,247", icon: <UserIcon /> },
     { label: "Rendez-vous ce mois", value: "89", icon: <CalendarIcon /> },
-    { label: "Années d'expérience", value: "15", icon: <AwardIcon /> },
+    { label: "Années d'expérience", value: profile.experience ? parseInt(profile.experience) || 15 : "15", icon: <AwardIcon /> },
     { label: "Taux de satisfaction", value: "98%", icon: <AwardIcon /> },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 pl-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
@@ -114,11 +208,14 @@ export default function ProfilePage() {
                 <div className="flex justify-center mb-4">
                   <Avatar className="h-24 w-24">
                     <AvatarImage src={profile.avatar || "/placeholder.svg"} />
-                    <AvatarFallback className="text-2xl">
+                    <AvatarFallback className="text-2xl bg-primary/10 text-primary">
                       {profile.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
+                        ? profile.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                        : "DR"}
                     </AvatarFallback>
                   </Avatar>
                 </div>
@@ -134,21 +231,21 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <PhoneIcon className="text-gray-500" />
-                  <span>{profile.phone}</span>
+                  <span>{profile.phone || "Non renseigné"}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <MapPinIcon className="text-gray-500" />
-                  <span>{profile.address}</span>
+                  <span>{profile.address || "Non renseigné"}</span>
                 </div>
                 <Separator />
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Licence:</span>
-                    <span className="font-medium">{profile.license}</span>
+                    <span className="font-medium">{profile.license || "N/A"}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Expérience:</span>
-                    <span className="font-medium">{profile.experience}</span>
+                    <span className="font-medium">{profile.experience || "N/A"}</span>
                   </div>
                 </div>
               </CardContent>
