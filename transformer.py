@@ -2,7 +2,7 @@ import sqlite3
 import mysql.connector
 
 # Connect to SQLite
-sqlite_conn = sqlite3.connect("medicaments.db")
+sqlite_conn = sqlite3.connect("mediassist/medicaments.db")
 sqlite_cursor = sqlite_conn.cursor()
 
 # Connect to MySQL

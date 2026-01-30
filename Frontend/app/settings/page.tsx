@@ -1,432 +1,595 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-// Icons
-const SettingsIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m11-7a4 4 0 0 1 0 8m0-8a4 4 0 0 0 0 8" />
-  </svg>
-)
-
-const UserPlusIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <line x1="19" y1="8" x2="19" y2="14" />
-    <line x1="22" y1="11" x2="16" y2="11" />
-  </svg>
-)
-
-const TrashIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <polyline points="3,6 5,6 21,6" />
-    <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2" />
-  </svg>
-)
-
-const EditIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-  </svg>
-)
-
-interface Nurse {
-  id: string
-  name: string
-  email: string
-  phone: string
-  specialization: string
-  status: "active" | "inactive"
-  avatar?: string
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { apiClient } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2, Users, Settings as SettingsIcon, Save, Plus, Trash2, Edit } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 export default function SettingsPage() {
-  // Preferences state
-  const [preferences, setPreferences] = useState({
-    showPatientPhotos: true,
-    showAppointmentReminders: true,
-    showMedicationAlerts: true,
-    showVitalSignsAlerts: false,
-    autoSaveNotes: true,
-    darkMode: false,
-    emailNotifications: true,
-    smsNotifications: false,
-    language: "fr",
-  })
-
-  // Nurses state
-  const [nurses, setNurses] = useState<Nurse[]>([
-    {
-      id: "1",
-      name: "Marie Dubois",
-      email: "marie.dubois@mediassist.com",
-      phone: "+33 1 23 45 67 89",
-      specialization: "Soins généraux",
-      status: "active",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "2",
-      name: "Sophie Martin",
-      email: "sophie.martin@mediassist.com",
-      phone: "+33 1 98 76 54 32",
-      specialization: "Pédiatrie",
-      status: "active",
-    },
-    {
-      id: "3",
-      name: "Claire Bernard",
-      email: "claire.bernard@mediassist.com",
-      phone: "+33 1 11 22 33 44",
-      specialization: "Cardiologie",
-      status: "inactive",
-    },
-  ])
-
-  // Add nurse form state
-  const [isAddNurseOpen, setIsAddNurseOpen] = useState(false)
-  const [newNurse, setNewNurse] = useState({
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [settings, setSettings] = useState<any>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [showUserDialog, setShowUserDialog] = useState(false)
+  const [showPermissionsDialog, setShowPermissionsDialog] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [editingUser, setEditingUser] = useState<any>(null)
+  const [newUser, setNewUser] = useState({
     name: "",
     email: "",
-    phone: "",
-    specialization: "",
-    status: "active" as "active" | "inactive",
+    password: "",
+    role: "nurse"
   })
 
-  const handlePreferenceChange = (key: string, value: boolean | string) => {
-    setPreferences((prev) => ({
-      ...prev,
-      [key]: value,
-    }))
-  }
+  useEffect(() => {
+    fetchSettings()
+    fetchUsers()
+  }, [])
 
-  const handleAddNurse = () => {
-    if (newNurse.name && newNurse.email) {
-      const nurse: Nurse = {
-        id: Date.now().toString(),
-        ...newNurse,
+  const fetchSettings = async () => {
+    try {
+      const response = await apiClient.getUserSettings()
+      if (response.success) {
+        setSettings(response.data)
       }
-      setNurses((prev) => [...prev, nurse])
-      setNewNurse({
-        name: "",
-        email: "",
-        phone: "",
-        specialization: "",
-        status: "active",
-      })
-      setIsAddNurseOpen(false)
+    } catch (error) {
+      console.error("Error fetching settings:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleDeleteNurse = (id: string) => {
-    setNurses((prev) => prev.filter((nurse) => nurse.id !== id))
+  const fetchUsers = async () => {
+    try {
+      const response = await apiClient.getUsers()
+      if (response.success && response.data) {
+        // Handle nested data structure
+        setUsers(Array.isArray(response.data) ? response.data : response.data.data || [])
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error)
+    }
   }
 
-  const handleToggleNurseStatus = (id: string) => {
-    setNurses((prev) =>
-      prev.map((nurse) =>
-        nurse.id === id ? { ...nurse, status: nurse.status === "active" ? "inactive" : "active" } : nurse,
-      ),
+  const handleSaveSettings = async () => {
+    setSaving(true)
+    try {
+      const response = await apiClient.updateUserSettings(settings)
+      if (response.success) {
+        toast({
+          title: "Succès",
+          description: "Paramètres enregistrés avec succès",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de l'enregistrement des paramètres",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateUser = async () => {
+    try {
+      const response = await apiClient.createUser(newUser)
+      if (response.success) {
+        toast({
+          title: "Succès",
+          description: "Utilisateur créé avec succès",
+        })
+        setShowUserDialog(false)
+        setNewUser({ name: "", email: "", password: "", role: "nurse" })
+        fetchUsers()
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message || "Erreur lors de la création de l'utilisateur",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) return
+
+    try {
+      const response = await apiClient.deleteUser(id)
+      if (response.success) {
+        toast({
+          title: "Succès",
+          description: "Utilisateur supprimé avec succès",
+        })
+        fetchUsers()
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la suppression",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleUserClick = (user: any) => {
+    setSelectedUser(user)
+    setShowPermissionsDialog(true)
+  }
+
+  const availableRoutes = [
+    { id: "dashboard", label: "Tableau de Bord" },
+    { id: "medecin", label: "Espace Médecin" },
+    { id: "patients", label: "Patients" },
+    { id: "medicaments", label: "Médicaments" },
+    { id: "analyses", label: "Analyses" },
+    { id: "statistics", label: "Statistiques" },
+    { id: "settings", label: "Paramètres" },
+  ]
+
+  const togglePermission = (routeId: string) => {
+    if (!selectedUser) return
+
+    const currentPermissions = selectedUser.permissions ? JSON.parse(selectedUser.permissions) : []
+    const newPermissions = currentPermissions.includes(routeId)
+      ? currentPermissions.filter((p: string) => p !== routeId)
+      : [...currentPermissions, routeId]
+
+    setSelectedUser({
+      ...selectedUser,
+      permissions: JSON.stringify(newPermissions)
+    })
+  }
+
+  const handleSavePermissions = async () => {
+    if (!selectedUser) return
+
+    try {
+      const permissions = selectedUser.permissions ? JSON.parse(selectedUser.permissions) : []
+      const response = await apiClient.updateUserPermissions(selectedUser.id, permissions)
+
+      if (response.success) {
+        toast({
+          title: "Succès",
+          description: "Permissions mises à jour avec succès",
+        })
+        setShowPermissionsDialog(false)
+        fetchUsers()
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la mise à jour des permissions",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pl-64">
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <SettingsIcon />
-            Paramètres
-          </h1>
-          <p className="text-gray-600 mt-2">Gérez vos préférences et les comptes infirmières</p>
-        </div>
+    <div className="p-8 max-w-[1400px] mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">Paramètres</h1>
+        <p className="text-gray-500 mt-2">Gérez vos préférences et utilisateurs</p>
+      </div>
 
-        <Tabs defaultValue="preferences" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="preferences">Préférences</TabsTrigger>
-            <TabsTrigger value="nurses">Gestion des Infirmières</TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="preferences" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="preferences">
+            <SettingsIcon className="w-4 h-4 mr-2" />
+            Préférences
+          </TabsTrigger>
+          <TabsTrigger value="users">
+            <Users className="w-4 h-4 mr-2" />
+            Utilisateurs
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="preferences" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Préférences d'affichage</CardTitle>
-                <CardDescription>Personnalisez l'affichage des informations dans l'application</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Afficher les photos des patients</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Affiche les photos de profil dans la liste des patients
-                    </p>
+        {/* Preferences Tab */}
+        <TabsContent value="preferences" className="space-y-6">
+          {/* Case Description Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuration de la Consultation</CardTitle>
+              <CardDescription>Choisissez les paramètres médicaux à afficher lors de la consultation</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
+                      T
+                    </div>
+                    <Label className="cursor-pointer">Taille (cm)</Label>
                   </div>
                   <Switch
-                    checked={preferences.showPatientPhotos}
-                    onCheckedChange={(checked) => handlePreferenceChange("showPatientPhotos", checked)}
+                    checked={settings?.show_height ?? true}
+                    onCheckedChange={(checked) => setSettings({ ...settings, show_height: checked })}
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Rappels de rendez-vous</Label>
-                    <p className="text-sm text-muted-foreground">Affiche les notifications de rappel de rendez-vous</p>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-xs">
+                      P
+                    </div>
+                    <Label className="cursor-pointer">Poids (kg)</Label>
                   </div>
                   <Switch
-                    checked={preferences.showAppointmentReminders}
-                    onCheckedChange={(checked) => handlePreferenceChange("showAppointmentReminders", checked)}
+                    checked={settings?.show_weight ?? true}
+                    onCheckedChange={(checked) => setSettings({ ...settings, show_weight: checked })}
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Alertes médicaments</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Affiche les alertes pour les interactions médicamenteuses
-                    </p>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-xs">
+                      FC
+                    </div>
+                    <Label className="cursor-pointer">Fréquence Cardiaque (bpm)</Label>
                   </div>
                   <Switch
-                    checked={preferences.showMedicationAlerts}
-                    onCheckedChange={(checked) => handlePreferenceChange("showMedicationAlerts", checked)}
+                    checked={settings?.show_pulse ?? true}
+                    onCheckedChange={(checked) => setSettings({ ...settings, show_pulse: checked })}
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Alertes signes vitaux</Label>
-                    <p className="text-sm text-muted-foreground">Affiche les alertes pour les signes vitaux anormaux</p>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs">
+                      °C
+                    </div>
+                    <Label className="cursor-pointer">Température (°C)</Label>
                   </div>
                   <Switch
-                    checked={preferences.showVitalSignsAlerts}
-                    onCheckedChange={(checked) => handlePreferenceChange("showVitalSignsAlerts", checked)}
+                    checked={settings?.show_temperature ?? true}
+                    onCheckedChange={(checked) => setSettings({ ...settings, show_temperature: checked })}
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Sauvegarde automatique</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Sauvegarde automatiquement les notes et observations
-                    </p>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-xs">
+                      TA
+                    </div>
+                    <Label className="cursor-pointer">Tension Artérielle</Label>
                   </div>
                   <Switch
-                    checked={preferences.autoSaveNotes}
-                    onCheckedChange={(checked) => handlePreferenceChange("autoSaveNotes", checked)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>Configurez vos préférences de notification</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Notifications par email</Label>
-                    <p className="text-sm text-muted-foreground">Recevez des notifications par email</p>
-                  </div>
-                  <Switch
-                    checked={preferences.emailNotifications}
-                    onCheckedChange={(checked) => handlePreferenceChange("emailNotifications", checked)}
+                    checked={settings?.show_pressure ?? true}
+                    onCheckedChange={(checked) => setSettings({ ...settings, show_pressure: checked })}
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Notifications SMS</Label>
-                    <p className="text-sm text-muted-foreground">Recevez des notifications par SMS</p>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 font-bold text-xs">
+                      G
+                    </div>
+                    <Label className="cursor-pointer">Glycémie</Label>
                   </div>
                   <Switch
-                    checked={preferences.smsNotifications}
-                    onCheckedChange={(checked) => handlePreferenceChange("smsNotifications", checked)}
+                    checked={settings?.show_glycemia ?? true}
+                    onCheckedChange={(checked) => setSettings({ ...settings, show_glycemia: checked })}
                   />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Langue et région</CardTitle>
-                <CardDescription>Configurez la langue de l'interface</CardDescription>
-              </CardHeader>
-              <CardContent>
+          {/* Notification Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Notifications</CardTitle>
+              <CardDescription>Gérez vos préférences de notification</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <Label>Notifications par email</Label>
+                  <p className="text-sm text-gray-500">Recevoir des emails pour les nouveaux rendez-vous</p>
+                </div>
+                <Switch
+                  checked={settings?.email_notifications ?? true}
+                  onCheckedChange={(checked) => setSettings({ ...settings, email_notifications: checked })}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <Label>Rappels SMS aux patients</Label>
+                  <p className="text-sm text-gray-500">Envoyer des rappels automatiques</p>
+                </div>
+                <Switch
+                  checked={settings?.sms_reminders ?? true}
+                  onCheckedChange={(checked) => setSettings({ ...settings, sms_reminders: checked })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Timing des rappels</Label>
+                <Select
+                  value={settings?.reminder_timing || "1_day"}
+                  onValueChange={(value) => setSettings({ ...settings, reminder_timing: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2_hours">2 heures avant</SelectItem>
+                    <SelectItem value="1_day">1 jour avant</SelectItem>
+                    <SelectItem value="2_days">2 jours avant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Display Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Affichage</CardTitle>
+              <CardDescription>Personnalisez l'interface</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="language">Langue</Label>
+                  <Label>Langue</Label>
                   <Select
-                    value={preferences.language}
-                    onValueChange={(value) => handlePreferenceChange("language", value)}
+                    value={settings?.language || "fr"}
+                    onValueChange={(value) => setSettings({ ...settings, language: value })}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Sélectionnez une langue" />
+                    <SelectTrigger>
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="fr">Français</SelectItem>
                       <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Español</SelectItem>
+                      <SelectItem value="ar">العربية</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              </CardContent>
-            </Card>
 
-            <div className="flex justify-end">
-              <Button>Sauvegarder les préférences</Button>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="nurses" className="space-y-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Gestion des Infirmières</CardTitle>
-                  <CardDescription>Ajoutez et gérez les comptes des infirmières</CardDescription>
+                <div className="space-y-2">
+                  <Label>Format de date</Label>
+                  <Select
+                    value={settings?.date_format || "DD/MM/YYYY"}
+                    onValueChange={(value) => setSettings({ ...settings, date_format: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                      <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                      <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Dialog open={isAddNurseOpen} onOpenChange={setIsAddNurseOpen}>
+
+                <div className="space-y-2">
+                  <Label>Format d'heure</Label>
+                  <Select
+                    value={settings?.time_format || "24h"}
+                    onValueChange={(value) => setSettings({ ...settings, time_format: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="24h">24 heures</SelectItem>
+                      <SelectItem value="12h">12 heures (AM/PM)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button onClick={handleSaveSettings} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Enregistrer les paramètres
+            </Button>
+          </div>
+        </TabsContent>
+
+        {/* Users Tab */}
+        <TabsContent value="users" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Gestion des Utilisateurs</CardTitle>
+                  <CardDescription>Ajoutez et gérez les infirmières et le personnel</CardDescription>
+                </div>
+                <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
                   <DialogTrigger asChild>
-                    <Button className="flex items-center gap-2">
-                      <UserPlusIcon />
-                      Ajouter une infirmière
+                    <Button className="bg-green-600 hover:bg-green-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nouvel utilisateur
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
+                  <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Ajouter une nouvelle infirmière</DialogTitle>
-                      <DialogDescription>
-                        Remplissez les informations pour créer un nouveau compte infirmière.
-                      </DialogDescription>
+                      <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="name">Nom complet</Label>
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label>Nom complet</Label>
                         <Input
-                          id="name"
-                          value={newNurse.name}
-                          onChange={(e) => setNewNurse((prev) => ({ ...prev, name: e.target.value }))}
-                          placeholder="Marie Dubois"
+                          value={newUser.name}
+                          onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                          placeholder="Jean Dupont"
                         />
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="email">Email</Label>
+                      <div className="space-y-2">
+                        <Label>Email</Label>
                         <Input
-                          id="email"
                           type="email"
-                          value={newNurse.email}
-                          onChange={(e) => setNewNurse((prev) => ({ ...prev, email: e.target.value }))}
-                          placeholder="marie.dubois@mediassist.com"
+                          value={newUser.email}
+                          onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                          placeholder="jean@example.com"
                         />
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="phone">Téléphone</Label>
+                      <div className="space-y-2">
+                        <Label>Mot de passe</Label>
                         <Input
-                          id="phone"
-                          value={newNurse.phone}
-                          onChange={(e) => setNewNurse((prev) => ({ ...prev, phone: e.target.value }))}
-                          placeholder="+33 1 23 45 67 89"
+                          type="password"
+                          value={newUser.password}
+                          onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                          placeholder="••••••••"
                         />
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="specialization">Spécialisation</Label>
-                        <Input
-                          id="specialization"
-                          value={newNurse.specialization}
-                          onChange={(e) => setNewNurse((prev) => ({ ...prev, specialization: e.target.value }))}
-                          placeholder="Soins généraux"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="status">Statut</Label>
-                        <Select
-                          value={newNurse.status}
-                          onValueChange={(value: "active" | "inactive") =>
-                            setNewNurse((prev) => ({ ...prev, status: value }))
-                          }
-                        >
+                      <div className="space-y-2">
+                        <Label>Rôle</Label>
+                        <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="active">Actif</SelectItem>
-                            <SelectItem value="inactive">Inactif</SelectItem>
+                            <SelectItem value="nurse">Infirmière</SelectItem>
+                            <SelectItem value="receptionist">Réceptionniste</SelectItem>
+                            <SelectItem value="doctor">Médecin</SelectItem>
+                            <SelectItem value="admin">Administrateur</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" onClick={handleAddNurse}>
-                        Ajouter l'infirmière
+                      <Button onClick={handleCreateUser} className="w-full bg-blue-600 hover:bg-blue-700">
+                        Créer l'utilisateur
                       </Button>
-                    </DialogFooter>
+                    </div>
                   </DialogContent>
                 </Dialog>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {nurses.map((nurse) => (
-                    <div key={nurse.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={nurse.avatar || "/placeholder.svg"} />
-                          <AvatarFallback>
-                            {nurse.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h4 className="font-semibold">{nurse.name}</h4>
-                          <p className="text-sm text-gray-600">{nurse.email}</p>
-                          <p className="text-sm text-gray-500">{nurse.specialization}</p>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {users && users.length > 0 ? (
+                  users.map((user) => {
+                    const userPermissions = user.permissions ? JSON.parse(user.permissions) : []
+                    return (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => handleUserClick(user)}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                            <Users className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-800">{user.name}</p>
+                            <p className="text-sm text-gray-500">{user.email}</p>
+                            {userPermissions.length > 0 && (
+                              <div className="flex gap-1 mt-1 flex-wrap">
+                                {userPermissions.slice(0, 3).map((permission: string) => (
+                                  <span key={permission} className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                    {permission}
+                                  </span>
+                                ))}
+                                {userPermissions.length > 3 && (
+                                  <span className="text-xs text-gray-500">+{userPermissions.length - 3}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                            {user.role}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteUser(user.id)
+                            }}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={nurse.status === "active" ? "default" : "secondary"}>
-                          {nurse.status === "active" ? "Actif" : "Inactif"}
-                        </Badge>
-                        <Button variant="outline" size="sm" onClick={() => handleToggleNurseStatus(nurse.id)}>
-                          <EditIcon />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteNurse(nurse.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <TrashIcon />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>Aucun utilisateur trouvé</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Permissions Dialog */}
+          <Dialog open={showPermissionsDialog} onOpenChange={setShowPermissionsDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Gérer les permissions - {selectedUser?.name}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <p className="text-sm text-gray-600">Sélectionnez les routes auxquelles cet utilisateur peut accéder:</p>
+                <div className="space-y-2">
+                  {availableRoutes.map((route) => {
+                    const currentPermissions = selectedUser?.permissions ? JSON.parse(selectedUser.permissions) : []
+                    const isChecked = currentPermissions.includes(route.id)
+
+                    return (
+                      <label
+                        key={route.id}
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => togglePermission(route.id)}
+                          className="w-4 h-4 text-blue-600 border-2 border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">{route.label}</span>
+                      </label>
+                    )
+                  })}
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={handleSavePermissions}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  >
+                    Enregistrer
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPermissionsDialog(false)}
+                    className="flex-1"
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

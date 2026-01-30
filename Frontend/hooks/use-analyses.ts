@@ -19,28 +19,24 @@ export function useAnalyses(showArchived = false) {
         setLoading(true)
         setError(null)
 
-        const response = await apiClient.getAnalyses(showArchived)
+        const response = await apiClient.getAnalyses(showArchived, page)
 
         if (response && response.success && response.data) {
-          let analysesArray = []
-
-          if (Array.isArray(response.data)) {
-            analysesArray = response.data
-          } else if (response.data.data && Array.isArray(response.data.data)) {
-            analysesArray = response.data.data
-          }
+          const analysesArray = response.data
+          const meta = response.meta || { current_page: 1, last_page: 1, total: Array.isArray(analysesArray) ? analysesArray.length : 0, per_page: 15 }
 
           if (Array.isArray(analysesArray)) {
-            const transformedAnalyses = analysesArray.map((analysis) => ({
+            const transformedAnalyses = analysesArray.map((analysis: any) => ({
               ...analysis,
               id: analysis.ID_Analyse || analysis.id,
               archived: Boolean(analysis.archived),
             }))
 
             setAnalyses(transformedAnalyses)
-            setTotal(transformedAnalyses.length)
-            setCurrentPage(1)
-            setTotalPages(1)
+            setTotal(meta.total)
+            setCurrentPage(meta.current_page)
+            setTotalPages(meta.last_page)
+            setPerPage(meta.per_page)
           } else {
             setError("Invalid data format received")
             setAnalyses([])
@@ -51,6 +47,7 @@ export function useAnalyses(showArchived = false) {
         }
       } catch (err) {
         setError("Network error occurred")
+        console.error(err)
         setAnalyses([])
       } finally {
         setLoading(false)

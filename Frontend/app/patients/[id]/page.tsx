@@ -480,7 +480,7 @@ export default function PatientDetailsPage() {
           const startDateStr = String(certificate.start_date || "").trim()
           const endDateStr = String(certificate.end_date || "").trim()
 
-          
+
 
           if (!startDateStr || !endDateStr) {
             console.error("[v0] Certificate dates are missing or invalid:", { startDateStr, endDateStr })
@@ -498,13 +498,13 @@ export default function PatientDetailsPage() {
             if (!startYear || !startMonth || !startDay || !endYear || !endMonth || !endDay) {
               throw new Error("Invalid date components")
             }
-            
+
             const startDate = new Date(startYear, startMonth - 1, startDay)
             const endDate = new Date(endYear, endMonth - 1, endDay)
-            
+
             console.log("[v0] Parsed start date:", startDate)
             console.log("[v0] Parsed end date:", endDate)
-            
+
             const restDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
             console.log("[v0] Calculated rest days:", restDays)
 
@@ -624,7 +624,7 @@ export default function PatientDetailsPage() {
       try {
         console.log("[v0] Fetching last medicaments for patient:", patientId)
         setLoadingMedicaments(true)
-        
+
         const response = await apiClient.getLastMedicamentsByPatient(patientId)
         console.log("[v0] Last medicaments response:", response)
 
@@ -652,12 +652,12 @@ export default function PatientDetailsPage() {
           const generateMedicationList = (meds: typeof medicaments) => {
             return meds.length > 0
               ? meds
-                  .map(
-                    (med) => `
+                .map(
+                  (med) => `
                   <div class="medication-item">• ${med.name || "Médicament"} </div>
                 `,
-                  )
-                  .join("")
+                )
+                .join("")
               : '<div class="medication-item" style="color: #999;">Aucun médicament prescrit</div>'
           }
 
@@ -706,9 +706,8 @@ export default function PatientDetailsPage() {
       </div>
       
       <!-- Page 2 (if needed) -->
-      ${
-        hasMultiplePages
-          ? `
+      ${hasMultiplePages
+              ? `
         <div class="page-break"></div>
         <div class="page">
           <div class="medication-list">
@@ -716,8 +715,8 @@ export default function PatientDetailsPage() {
           </div>
         </div>
       `
-          : ""
-      }
+              : ""
+            }
     </div>
   </body>
 </html>
@@ -1074,7 +1073,10 @@ export default function PatientDetailsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <label className="relative inline-flex items-center cursor-pointer">
+                          <label
+                            className="relative inline-flex items-center cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <input
                               type="checkbox"
                               className="sr-only peer"
@@ -1161,7 +1163,7 @@ export default function PatientDetailsPage() {
                           <p className="text-xs text-gray-500 mt-1">
                             {Math.ceil(
                               (new Date(certificate.end_date).getTime() - new Date(certificate.start_date).getTime()) /
-                                (1000 * 60 * 60 * 24),
+                              (1000 * 60 * 60 * 24),
                             )}{" "}
                             jours
                           </p>
@@ -1237,9 +1239,9 @@ export default function PatientDetailsPage() {
                   <span className="text-sm font-medium text-gray-800">
                     {patient.lastAppointment
                       ? new Date(patient.lastAppointment.appointment_date).toLocaleDateString("fr-FR", {
-                          day: "numeric",
-                          month: "long",
-                        })
+                        day: "numeric",
+                        month: "long",
+                      })
                       : "Jamais"}
                   </span>
                 </div>
@@ -1276,7 +1278,10 @@ export default function PatientDetailsPage() {
           <DialogHeader>
             <DialogTitle>Nouveau Certificat Médical</DialogTitle>
           </DialogHeader>
-          <CertificateForm onSubmit={handleAddCertificate} />
+          <CertificateForm
+            onSubmit={handleAddCertificate}
+            onCancel={() => setIsCertificateModalOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -1476,7 +1481,13 @@ function PatientForm({
 }
 
 // Certificate Form Component
-function CertificateForm({ onSubmit }: { onSubmit: (data: any) => void }) {
+function CertificateForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (data: any) => void
+  onCancel: () => void
+}) {
   const [formData, setFormData] = useState({
     start_date: new Date().toISOString().split("T")[0],
     end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
@@ -1554,7 +1565,7 @@ function CertificateForm({ onSubmit }: { onSubmit: (data: any) => void }) {
       </div>
 
       <div className="flex justify-end space-x-3 pt-4">
-        <Button type="button" variant="outline">
+        <Button type="button" variant="outline" onClick={onCancel}>
           Annuler
         </Button>
         <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={daysCount > 20}>

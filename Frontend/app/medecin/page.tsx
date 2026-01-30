@@ -50,6 +50,7 @@ interface DashboardData {
     completed: number
     cancelled: number
   }
+  patientHistory: Appointment[]
 }
 
 const DoctorDashboard = () => {
@@ -60,7 +61,7 @@ const DoctorDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData()
-    const interval = setInterval(() => fetchDashboardData(true), 3000) // Refresh every 3s
+    const interval = setInterval(() => fetchDashboardData(true), 1000) // Refresh every 1s for near real-time
     return () => clearInterval(interval)
   }, [])
 
@@ -68,7 +69,8 @@ const DoctorDashboard = () => {
     // Keep loading state mostly for initial load, silent refresh for updates
     if (!isBackground && !data) setLoading(true)
     setError(null)
-    const response = await apiClient.getMedecinDashboard()
+    // Always skip cache when doing background refresh to get real-time data
+    const response = await apiClient.getMedecinDashboard(true)
 
     if (response.success && response.data) {
       const rawData = response.data as any
@@ -95,6 +97,7 @@ const DoctorDashboard = () => {
           completed: actualData.completedTodayPatients?.length || actualData.completedPatients?.length || 0,
           cancelled: actualData.cancelledTodayPatients?.length || actualData.cancelledPatients?.length || 0,
         },
+        patientHistory: actualData.patientHistory || [],
       }
 
       setData(transformedData)
@@ -105,25 +108,140 @@ const DoctorDashboard = () => {
   }
 
   const handleNavigatePatient = async (direction: "next" | "previous") => {
+    // Optimistic Update
+    const previousData = { ...data } as DashboardData
+
+    // Logic to simulate change locally
+    let newData = { ...previousData }
+    let newCurrent = null
+
+    if (direction === "next") {
+      if (newData.waitingPatients.length > 0) {
+        newCurrent = { ...newData.waitingPatients[0], status: "En consultation", consultation_started_at: new Date().toISOString() }
+        newData.waitingPatients = newData.waitingPatients.slice(1)
+        // If there was a current patient, they likely go to completed or back to waiting?
+        // "Next" usually implies finishing the current one or just swapping. 
+        // The backend logic for "next" seems to just grab the next one.
+        // For true optimistic UI, we'd need to know exactly what the backend does.
+        // Backend: nextPatient->status = 'En consultation'.
+        // It DOES NOT touch the current patient status automatically in the snippet I saw! 
+        // (Wait, `navigatePatient` backend logic handles `nextPatient`... but what about the old one?)
+        // The backend `navigatePatient` implementation I saw ONLY touches the NEW patient.
+        // It does NOT finish the old one. So we might have multiple "En consultation"?
+        // Ah, the dashboard logic `currentPatient` queries `latest()`.
+        // So the new one becomes the current one.
+        newData.currentPatient = newCurrent
+        // Add to active count?
+        newData.activeAppointments += 1 // Roughly
+        newData.statusCounts.consulting = 1
+        newData.statusCounts.waiting -= 1
+      }
+    } else {
+      // Previous... similar logic, tricky to guess exactly which one without backend sort.
+      // For simplicity/safety, we might just show loading or just rely on the fast backend?
+      // Actually, user complained about "long time to response". 
+      // Let's at least show a loading state or try to guess.
+      // Let's just set loading for previous to be safe, but "next" is common and easy to guess.
+    }
+
+    setData(newData)
+
     const response = await apiClient.navigatePatient(direction)
     if (response.success) {
-      await fetchDashboardData()
+      // Background refresh to ensure consistency
+      fetchDashboardData()
+    } else {
+      // Revert on failure
+      setData(previousData)
+      // toast.error("Erreur...")
     }
   }
 
   const handleCompleteConsultation = async () => {
     if (!data?.currentPatient) return
+
+    // Optimistic
+    const previousData = { ...data }
+    const completedPatient = { ...data.currentPatient, status: "Terminé" }
+
+    const newData = {
+      ...previousData,
+      currentPatient: null, // No current patient
+      completedPatients: [completedPatient, ...previousData.completedPatients],
+      statusCounts: {
+        ...previousData.statusCounts,
+        consulting: 0,
+        completed: previousData.statusCounts.completed + 1
+      },
+      todayPatients: previousData.todayPatients, // doesn't change
+      // Update revenue? Maybe
+      dailyRevenue: previousData.dailyRevenue + (completedPatient.payement || 0),
+      completedRevenue: previousData.completedRevenue + (completedPatient.payement || 0),
+      pendingRevenue: previousData.pendingRevenue - (completedPatient.payement || 0),
+    }
+
+    setData(newData)
+
     const response = await apiClient.updateMedecinStatus(data.currentPatient.ID_RV, "Terminé")
     if (response.success) {
-      await fetchDashboardData()
+      fetchDashboardData(true) // Silent refresh
+    } else {
+      setData(previousData)
     }
   }
 
   const handleCancelConsultation = async () => {
     if (!data?.currentPatient) return
+
+    const previousData = { ...data }
+    const cancelledPatient = { ...data.currentPatient, status: "Annulé" }
+
+    const newData = {
+      ...previousData,
+      currentPatient: null,
+      cancelledPatients: [cancelledPatient, ...previousData.cancelledPatients],
+      statusCounts: {
+        ...previousData.statusCounts,
+        consulting: 0,
+        cancelled: previousData.statusCounts.cancelled + 1
+      }
+    }
+
+    setData(newData)
+
     const response = await apiClient.updateMedecinStatus(data.currentPatient.ID_RV, "Annulé")
     if (response.success) {
-      await fetchDashboardData()
+      fetchDashboardData(true)
+    } else {
+      setData(previousData)
+    }
+  }
+
+  const handleReturnToConsultation = async (appointmentId: number) => {
+    // Tricky to optimistic update without knowing which one exactly in the list
+    // But we can find it in completedPatients
+    const previousData = { ...data } as DashboardData
+    const patientToReturn = previousData.completedPatients.find(p => p.ID_RV === appointmentId)
+
+    if (patientToReturn) {
+      const newData = {
+        ...previousData,
+        currentPatient: { ...patientToReturn, status: "En consultation" },
+        completedPatients: previousData.completedPatients.filter(p => p.ID_RV !== appointmentId),
+        statusCounts: {
+          ...previousData.statusCounts,
+          consulting: 1,
+          completed: previousData.statusCounts.completed - 1
+        }
+      }
+      setData(newData)
+    }
+
+    const response = await apiClient.returnToConsultation(appointmentId)
+    if (response.success) {
+      fetchDashboardData(true)
+    } else {
+      setData(previousData)
     }
   }
 
@@ -133,13 +251,6 @@ const DoctorDashboard = () => {
 
   const handleViewAppointment = (appointmentId: number) => {
     router.push(`/appointments/${appointmentId}`)
-  }
-
-  const handleReturnToConsultation = async (appointmentId: number) => {
-    const response = await apiClient.returnToConsultation(appointmentId)
-    if (response.success) {
-      await fetchDashboardData()
-    }
   }
 
   // Determine Initials for Avatar
@@ -271,9 +382,8 @@ const DoctorDashboard = () => {
             <CardContent className="flex-1 overflow-auto">
               {data.currentPatient ? (
                 <Tabs defaultValue="details" className="w-full h-full flex flex-col">
-                  <TabsList className="grid w-full grid-cols-3 mb-6">
+                  <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="details">Détails Patient</TabsTrigger>
-                    <TabsTrigger value="medical">Dossier Médical</TabsTrigger>
                     <TabsTrigger value="history">Historique</TabsTrigger>
                   </TabsList>
 
@@ -322,32 +432,54 @@ const DoctorDashboard = () => {
 
                       <div className="space-y-4">
                         <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                          <Stethoscope className="w-4 h-4" /> Motif de consultation
+                          <Stethoscope className="w-4 h-4" /> Motif de consultation & Observations
                         </h4>
                         <div className="bg-blue-50/50 p-6 rounded-lg border border-blue-100">
-                          <p className="text-lg text-gray-700 italic">
-                            "{data.currentPatient.Diagnostic || "Aucun motif spécifié par l'accueil."}"
+                          <p className="text-base text-gray-700 whitespace-pre-wrap">
+                            {data.currentPatient.caseDescription?.case_description || data.currentPatient.Diagnostic || data.currentPatient.notes || "Aucun motif spécifié."}
                           </p>
+                          {data.currentPatient.caseDescription?.notes && (
+                            <div className="mt-4 pt-4 border-t border-blue-100">
+                              <span className="text-xs font-semibold text-blue-500 uppercase mb-1 block">Notes complémentaires</span>
+                              <p className="text-sm text-gray-600">{data.currentPatient.caseDescription.notes}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                     </TabsContent>
 
-                    <TabsContent value="medical" className="mt-0">
-                      <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-gray-50/50 rounded-lg border border-dashed">
-                        <FileText className="w-12 h-12 mb-2 opacity-50" />
-                        <p>Dossier médical complet disponible via "Voir Patient"</p>
-                        <Button variant="link" onClick={() => handleViewPatient(data.currentPatient!.ID_patient)}>
-                          Ouvrir le dossier complet
-                        </Button>
-                      </div>
-                    </TabsContent>
-
                     <TabsContent value="history" className="mt-0">
-                      <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-gray-50/50 rounded-lg border border-dashed">
-                        <History className="w-12 h-12 mb-2 opacity-50" />
-                        <p>Historique des consultations</p>
-                      </div>
+                      <ScrollArea className="h-64 pr-4">
+                        {data.patientHistory && data.patientHistory.length > 0 ? (
+                          <div className="space-y-3">
+                            {data.patientHistory.map((hist) => (
+                              <div key={hist.ID_RV} className="flex flex-col p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <div className="flex justify-between items-start mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-gray-400" />
+                                    <span className="font-medium text-sm">
+                                      {new Date(hist.appointment_date).toLocaleDateString()}
+                                    </span>
+                                    <Badge variant="secondary" className="text-[10px]">{hist.type}</Badge>
+                                  </div>
+                                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => handleViewAppointment(hist.ID_RV)}>
+                                    Détails <ChevronRight className="w-3 h-3 ml-1" />
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-gray-600 line-clamp-2">
+                                  {hist.caseDescription?.case_description || hist.diagnostic || "Aucune note."}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                            <History className="w-10 h-10 mb-2 opacity-30" />
+                            <p className="text-sm">Aucun historique récent disponible.</p>
+                          </div>
+                        )}
+                      </ScrollArea>
                     </TabsContent>
                   </div>
 
@@ -379,11 +511,11 @@ const DoctorDashboard = () => {
             {data.currentPatient && (
               <div className="p-6 bg-gray-50 border-t flex justify-between items-center mt-auto">
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleNavigatePatient('previous')}>
-                    Précédent
-                  </Button>
                   <Button variant="outline" size="sm" onClick={() => handleViewPatient(data.currentPatient!.ID_patient)}>
-                    Dossier Patient
+                    Dossier Médical
+                  </Button>
+                  <Button variant="default" size="sm" onClick={() => handleViewAppointment(data.currentPatient!.ID_RV)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    Détails Rendez-vous
                   </Button>
                 </div>
 
@@ -450,7 +582,17 @@ const DoctorDashboard = () => {
                           <div
                             key={patient.ID_RV}
                             className="group flex items-center justify-between p-3 rounded-lg border border-gray-100 bg-white hover:border-primary/30 hover:shadow-sm hover:bg-primary/5 transition-all cursor-pointer"
-                            onClick={() => handleViewAppointment(patient.ID_RV)}
+                            onClick={async () => {
+                              // If no current patient, start consultation directly
+                              if (!data.currentPatient) {
+                                const response = await apiClient.updateMedecinStatus(patient.ID_RV, "En consultation")
+                                if (response.success) fetchDashboardData()
+                              } else {
+                                // Otherwise just view details or maybe show alert?
+                                // Defaulting to view details as per usual flow
+                                handleViewAppointment(patient.ID_RV)
+                              }
+                            }}
                           >
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9 bg-yellow-100 text-yellow-700 font-medium text-xs">

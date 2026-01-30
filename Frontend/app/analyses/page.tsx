@@ -30,7 +30,7 @@ export default function AnalysesPage() {
     departement: "",
   })
 
-  const { analyses, searchAnalyses, createAnalysis, updateAnalysis, toggleArchiveStatus, loading, error } =
+  const { analyses, searchAnalyses, createAnalysis, updateAnalysis, toggleArchiveStatus, loading, error, total, totalPages, currentPage, fetchAnalyses } =
     useAnalyses(showArchived)
 
   const debounceTimer = useRef<NodeJS.Timeout>()
@@ -237,7 +237,7 @@ export default function AnalysesPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow>
+              <TableRow key="loading">
                 <TableCell colSpan={showArchived ? 5 : 4} className="text-center py-8">
                   <div className="flex items-center justify-center">
                     <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -246,7 +246,7 @@ export default function AnalysesPage() {
                 </TableCell>
               </TableRow>
             ) : filteredAnalyses.length === 0 ? (
-              <TableRow>
+              <TableRow key="empty">
                 <TableCell colSpan={showArchived ? 5 : 4} className="text-center py-8">
                   <div className="flex flex-col items-center justify-center">
                     <Flask className="w-12 h-12 text-blue-300 mb-2" />
@@ -329,6 +329,37 @@ export default function AnalysesPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
+      {!loading && !error && filteredAnalyses.length > 0 && !isSearching && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-gray-500">
+            Affichage de <span className="font-medium">{analyses.length}</span> sur <span className="font-medium">{total}</span> résultats
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAnalyses(currentPage - 1)}
+              disabled={currentPage <= 1 || loading}
+            >
+              Précédent
+            </Button>
+            <div className="flex items-center px-4 text-sm text-gray-600 bg-white border rounded-md">
+              Page {currentPage} sur {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAnalyses(currentPage + 1)}
+              disabled={currentPage >= totalPages || loading}
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      )
+      }
 
       {/* Add/Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -478,6 +509,6 @@ export default function AnalysesPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   )
 }

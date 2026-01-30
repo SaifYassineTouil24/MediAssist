@@ -3,6 +3,8 @@
 import type React from "react"
 import { useState } from "react"
 
+import { useRouter } from "next/navigation"
+
 interface PatientCardProps {
   name: string
   type: string
@@ -29,6 +31,7 @@ export default function PatientCard({
   onEdit,
 }: PatientCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
+  const router = useRouter()
 
   const getStatusColors = (status: string) => {
     switch (status) {
@@ -99,7 +102,7 @@ export default function PatientCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  window.location.href = `/patients/${patientId}`
+                  router.push(`/patients/${patientId}`)
                 }}
                 className="inline-flex items-center justify-center px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
                 title="Voir les détails du patient"

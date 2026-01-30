@@ -9,6 +9,7 @@ use App\Http\Controllers\AnalysisController;
 use App\Http\Controllers\MedecinController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CertificateController;
+use App\Http\Controllers\StatisticsController;
 
 
 
@@ -85,6 +86,11 @@ Route::prefix('medecin')->group(function () {
     Route::post('/navigate-patient', [MedecinController::class, 'navigatePatient']);
     Route::post('/return-to-consultation', [MedecinController::class, 'returnToConsultation']);
     Route::get('/appointments/{date}', [MedecinController::class, 'getAppointmentsByDate']);
+
+    // Statistics
+    Route::get('/statistics', [StatisticsController::class, 'getDashboardStats']);
+    Route::get('/statistics/chart-data', [StatisticsController::class, 'getChartData']);
+    Route::get('/statistics/range', [StatisticsController::class, 'getAvailableRange']);
 });
 
 
@@ -101,4 +107,19 @@ Route::prefix('certificates')->group(function () {
     Route::get('/{certificate}', [CertificateController::class, 'show']);
     Route::post('/', [CertificateController::class, 'store']);
     Route::delete('/{certificate}', [CertificateController::class, 'destroy']);
+});
+
+// SETTINGS
+Route::prefix('settings')->group(function () {
+    Route::get('/', [App\Http\Controllers\SettingsController::class, 'getUserSettings']);
+    Route::put('/', [App\Http\Controllers\SettingsController::class, 'updateUserSettings']);
+});
+
+// USER MANAGEMENT (Admin only)
+Route::prefix('users')->group(function () {
+    Route::get('/', [App\Http\Controllers\SettingsController::class, 'getUsers']);
+    Route::post('/', [App\Http\Controllers\SettingsController::class, 'createUser']);
+    Route::put('/{id}', [App\Http\Controllers\SettingsController::class, 'updateUser']);
+    Route::put('/{id}/permissions', [App\Http\Controllers\SettingsController::class, 'updateUserPermissions']);
+    Route::delete('/{id}', [App\Http\Controllers\SettingsController::class, 'deleteUser']);
 });

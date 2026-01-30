@@ -14,6 +14,7 @@ class Appointment extends Model
         'mutuelle', 
         'payement', 
         'Diagnostic',
+        'type',
         'consultation_started_at',
         'consultation_ended_at',
         'updated_at',
@@ -25,7 +26,7 @@ class Appointment extends Model
 
     public function patient(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(Patient::class, 'ID_patient');
+        return $this->belongsTo(Patient::class, 'ID_patient', 'ID_patient');
     }
 
     public function analyses()

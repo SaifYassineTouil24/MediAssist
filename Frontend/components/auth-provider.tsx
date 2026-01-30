@@ -31,32 +31,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async (retries = 3) => {
     setIsLoading(true)
 
+    // Attempt to verify session with server first (HTTP-only cookie)
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const response = await authApiClient.getUser()
+
         if (response.success && response.user) {
           setUser(response.user)
-          // Store user in localStorage as backup
+          // Backup to localStorage for basic offline UI preservation, but truth is always server
           localStorage.setItem("user", JSON.stringify(response.user))
+          setIsLoading(false)
+          return
+        } else if (response.message?.includes("Unauthenticated") || response.message === "Not authenticated") {
+          // Explicit failure from server means the cookie is invalid or missing.
+          // Clear everything.
+          console.log("[v0] Server auth check failed (Unauthenticated). Clearing session.")
+          setUser(null)
+          localStorage.removeItem("user")
           setIsLoading(false)
           return
         }
       } catch (error) {
-        console.error(`[v0] Auth check attempt ${attempt + 1} failed:`, error)
+        console.error(`[v0] Auth check attempt ${attempt + 1} failed (Network/Other):`, error)
         if (attempt < retries - 1) {
-          // Wait before retrying
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
       }
     }
 
-    // If all retries failed, try to restore from localStorage
+    // If all retries failed (due to NETWORK errors, not auth errors), try to restore from localStorage
+    // This allows for "offline mode" or resilience against temporary network blips
     const storedUser = localStorage.getItem("user")
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser)
         setUser(user)
-        console.log("[v0] Restored user from localStorage")
+        console.log("[v0] Restored user from localStorage (Network potentially unavailable)")
       } catch (error) {
         console.error("[v0] Failed to restore user from localStorage:", error)
         setUser(null)
@@ -92,10 +102,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    await authApiClient.logout()
+    // Clear local state immediately for UI responsiveness
     setUser(null)
-    // Clear localStorage on logout
     localStorage.removeItem("user")
+
+    // Then attempt server-side logout
+    try {
+      await authApiClient.logout()
+    } catch (error) {
+      console.error("Logout API call failed:", error)
+    }
   }
 
   return (

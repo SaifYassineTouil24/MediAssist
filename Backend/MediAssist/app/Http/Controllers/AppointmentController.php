@@ -132,6 +132,15 @@ class AppointmentController extends Controller
             ];
 
             $appointment = Appointment::where('ID_RV', $validated['appointment_id'])->firstOrFail();
+            
+            // Set timestamps based on status transition
+            if ($validated['status'] === 'consulting' && !$appointment->consultation_started_at) {
+                $appointment->consultation_started_at = now();
+            }
+            if ($validated['status'] === 'completed' && !$appointment->consultation_ended_at) {
+                $appointment->consultation_ended_at = now();
+            }
+
             $appointment->status = $statusMapping[$validated['status']];
             $appointment->save();
 

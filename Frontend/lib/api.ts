@@ -112,6 +112,13 @@ export interface ApiResponse<T> {
   data?: T
   error?: string
   errors?: Record<string, string[]>
+  meta?: {
+    current_page: number
+    last_page: number
+    total: number
+    per_page: number
+    [key: string]: any
+  }
 }
 
 class ApiClient {
@@ -773,9 +780,10 @@ class ApiClient {
   }
 
   // Analysis management endpoints
-  async getAnalyses(showArchived = false): Promise<ApiResponse<Analysis[]>> {
+  async getAnalyses(showArchived = false, page = 1): Promise<ApiResponse<any>> {
     const params = new URLSearchParams()
-    if (showArchived) params.append("archived", "true")
+    if (showArchived) params.append("archived", "1")
+    if (page > 1) params.append("page", page.toString())
 
     const endpoint = `/analyses?${params.toString()}`
     console.log("[v0] Calling getAnalyses endpoint:", endpoint)
@@ -783,26 +791,50 @@ class ApiClient {
     const cacheKey = `${this.baseURL}${endpoint}`
     requestCache.delete(cacheKey)
 
-    const response = await this.request<{ success: boolean; data: Analysis[] }>(endpoint)
+    const response = await this.request<any>(endpoint)
 
     console.log("[v0] getAnalyses raw response:", JSON.stringify(response, null, 2))
 
-    // Transform the response to extract the data array
     if (response.success && response.data) {
+      // Check for Laravel pagination structure
+      // response.data.data refers to the 'data' property of the JSON response, which is the paginator object
+      const paginator = response.data.data
+
+      // The actual items are inside the 'data' property of the paginator object
+      if (paginator && paginator.data && Array.isArray(paginator.data)) {
+        return {
+          success: true,
+          data: paginator.data,
+          meta: {
+            current_page: paginator.current_page,
+            last_page: paginator.last_page,
+            total: paginator.total,
+            per_page: paginator.per_page
+          }
+        } as any
+      }
+
       const extractedData = response.data.data || response.data
       console.log("[v0] getAnalyses extracted data:", extractedData)
       return {
         success: true,
-        data: extractedData as Analysis[],
-      }
+        data: extractedData,
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          total: Array.isArray(extractedData) ? extractedData.length : 0,
+          per_page: 15
+        }
+      } as any
     }
 
     return {
       success: response.success,
       message: response.message,
       error: response.error,
-      data: []
-    } as ApiResponse<Analysis[]>
+      data: [],
+      meta: { current_page: 1, last_page: 1, total: 0 }
+    } as any
   }
 
   async createAnalysis(analysisData: {
@@ -880,7 +912,7 @@ class ApiClient {
   }
 
   // Medecin dashboard endpoints
-  async getMedecinDashboard(): Promise<
+  async getMedecinDashboard(skipCache = false): Promise<
     ApiResponse<{
       totalPatients: number
       todayPatients: number
@@ -898,7 +930,7 @@ class ApiClient {
       }
     }>
   > {
-    const response = await this.request("/medecin/dashboard", {}, true) // Always skip cache for dashboard
+    const response = await this.request("/medecin/dashboard", {}, skipCache) // cache controlled by param
     console.log("[v0] getMedecinDashboard raw response:", JSON.stringify(response, null, 2))
 
     // Laravel might return data directly or wrapped in a data property
@@ -995,6 +1027,69 @@ class ApiClient {
     }>
   > {
     return this.request(`/patients/${patientId}/last-medicaments`)
+  }
+
+  async getDoctorStats(): Promise<ApiResponse<any>> {
+    return this.request("/medecin/statistics")
+  }
+
+  async getStatsRange(): Promise<ApiResponse<{ min_year: number; max_year: number }>> {
+    return this.request("/medecin/statistics/range")
+  }
+
+  async getChartData(view: 'year' | 'month', target: string): Promise<ApiResponse<Array<{ date: string; count: number; revenue: number }>>> {
+    const params = new URLSearchParams()
+    params.append("view", view)
+    params.append("target", target)
+    return this.request(`/medecin/statistics/chart-data?${params.toString()}`)
+  }
+
+  // Settings endpoints
+  async getUserSettings(): Promise<ApiResponse<any>> {
+    return this.request("/settings")
+  }
+
+  async updateUserSettings(settings: any): Promise<ApiResponse<any>> {
+    return this.request("/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    })
+  }
+
+  // User management endpoints (Admin only)
+  async getUsers(): Promise<ApiResponse<any>> {
+    return this.request("/users")
+  }
+
+  async createUser(userData: any): Promise<ApiResponse<any>> {
+    return this.request("/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    })
+  }
+
+  async updateUser(id: number, userData: any): Promise<ApiResponse<any>> {
+    return this.request(`/users/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    })
+  }
+
+  async deleteUser(id: number): Promise<ApiResponse<any>> {
+    return this.request(`/users/${id}`, {
+      method: "DELETE",
+    })
+  }
+
+  async updateUserPermissions(id: number, permissions: string[]): Promise<ApiResponse<any>> {
+    return this.request(`/users/${id}/permissions`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ permissions }),
+    })
   }
 }
 

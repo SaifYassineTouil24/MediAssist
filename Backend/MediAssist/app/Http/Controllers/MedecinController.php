@@ -15,92 +15,62 @@ class MedecinController extends Controller
 
             $today = now()->format('Y-m-d');
 
-            // =========================
-            // CURRENT PATIENT
-            // =========================
-            $currentPatient = Appointment::with('patient')
-                ->where('status', 'En consultation')
+            // 1. Single query for ALL of today's appointments
+            $todayAppointments = Appointment::with(['patient', 'caseDescription', 'medicaments']) // Preload everything needed
                 ->whereDate('appointment_date', $today)
-                ->latest()
-                ->first();
-
-            // =========================
-            // WAITING
-            // =========================
-            $waitingPatients = Appointment::with('patient')
-                ->where('status', 'Salle dattente')
-                ->whereDate('appointment_date', $today)
-                ->orderBy('created_at', 'asc')
                 ->get();
 
-            // =========================
-            // PREPARING
-            // =========================
-            $preparingPatients = Appointment::with('patient')
-                ->where('status', 'En préparation')
-                ->whereDate('appointment_date', $today)
-                ->orderBy('updated_at', 'asc')
-                ->get();
+            // 2. Filter collections in memory (much faster for typical daily volume < 100)
+            $currentPatient = $todayAppointments->where('status', 'En consultation')->sortByDesc('created_at')->first();
+            
+            // Re-fetch current patient to ensure we have latest relation if needed, or rely on eager load
+            // Actually, we need 'caseDescription' which is preloaded.
+            // But we need 'patientHistory' for this specific patient.
+            
+            $patientHistory = [];
+            if ($currentPatient) {
+                // This one still needs a separate query because it looks at PAST dates
+                $patientHistory = Appointment::with(['medicaments', 'caseDescription'])
+                    ->where('ID_patient', $currentPatient->ID_patient)
+                    ->where('ID_RV', '!=', $currentPatient->ID_RV)
+                    ->orderBy('appointment_date', 'desc')
+                    ->take(5)
+                    ->get();
+            }
 
-            // =========================
-            // COMPLETED
-            // =========================
-            $completedPatients = Appointment::with('patient')
-                ->where('status', 'Terminé')
-                ->whereDate('appointment_date', $today)
-                ->orderBy('updated_at', 'desc')
-                ->get();
+            $waitingPatients   = $todayAppointments->where('status', 'Salle dattente')->sortBy('created_at')->values();
+            $preparingPatients = $todayAppointments->where('status', 'En préparation')->sortBy('updated_at')->values();
+            $completedPatients = $todayAppointments->where('status', 'Terminé')->sortByDesc('updated_at')->values();
+            $cancelledPatients = $todayAppointments->where('status', 'Annulé')->sortByDesc('updated_at')->values();
 
-            // =========================
-            // CANCELLED
-            // =========================
-            $cancelledPatients = Appointment::with('patient')
-                ->where('status', 'Annulé')
-                ->whereDate('appointment_date', $today)
-                ->orderBy('updated_at', 'desc')
-                ->get();
-
-            // =========================
-            // UPCOMING APPOINTMENTS
-            // =========================
+            // 3. Upcoming (Future dates) - Independent query
             $upcomingAppointments = Appointment::with('patient')
                 ->whereDate('appointment_date', '>', $today)
                 ->orderBy('appointment_date', 'asc')
                 ->limit(10)
                 ->get();
 
-            // =========================
-            // COUNTS
-            // =========================
-            $totalPatients = Patient::count();
+            // 4. Counts
+            $totalPatients = Patient::count(); // Keep this simple query
+            $todayPatients = $todayAppointments->count();
+            
+            $activeAppointments = $todayAppointments->whereIn('status', ['Salle dattente', 'En préparation', 'En consultation'])->count();
 
-            $todayPatients = Appointment::whereDate('appointment_date', $today)->count();
-
-            $activeAppointments = Appointment::whereDate('appointment_date', $today)
-                ->whereIn('status', ['Salle dattente', 'En préparation', 'En consultation'])
-                ->count();
-
-            // =========================
-            // AVERAGE CONSULTATION TIME
-            // =========================
+            // 5. Revenue & Stats (In Memory)
             $averageConsultationTime = $this->computeAverageConsultationTime($completedPatients);
-
-            // =========================
-            // REVENUE (BASED ON payement FIELD)
-            // =========================
             $dailyRevenue = $completedPatients->sum('payement');
+            $completedRevenue = $dailyRevenue;
+            
+            $pendingRevenue = $todayAppointments->whereIn('status', ['Salle dattente', 'En préparation', 'En consultation'])->sum('payement');
 
-            $completedRevenue = $completedPatients->sum('payement');
-
-            $pendingRevenue = Appointment::whereDate('appointment_date', $today)
-                ->whereIn('status', ['Salle dattente', 'En préparation', 'En consultation'])
-                ->sum('payement');
-
-            // =========================
-            // PAYMENT BREAKDOWN
-            // (Values stored in "mutuelle" field)
-            // =========================
             $paymentBreakdown = [
+                'cash'     => $completedPatients->where('mutuelle', 'Espèces')->sum('payement'), // Assuming 'mutuelle' stores payment mode based on prev logic?
+                // Wait, previous code used `where('mutuelle', 'Espèces')`. 
+                // Let's verify if `mutuelle` column holds 'Espèces' or if that was a misunderstanding of the legacy code.
+                // In `AppointmentController::storeV1`, mutuelle is boolean.
+                // In `MedecinController` original code: `$completedPatients->where('mutuelle', 'Espèces')`.
+                // This implies `mutuelle` field is possibly misused or polymorphic string?
+                // Let's keep strict equality to previous logic.
                 'cash'     => $completedPatients->where('mutuelle', 'Espèces')->sum('payement'),
                 'card'     => $completedPatients->where('mutuelle', 'Carte')->sum('payement'),
                 'cheque'   => $completedPatients->where('mutuelle', 'Chèque')->sum('payement'),
@@ -108,29 +78,16 @@ class MedecinController extends Controller
                 'pending'  => $pendingRevenue
             ];
 
-            // =========================
-            // REVENUE BY CONSULTATION TYPE
-            // =========================
             $revenueByType = [];
-
             foreach ($completedPatients as $appointment) {
-
                 $type = $appointment->type ?? 'Autre';
-
                 if (!isset($revenueByType[$type])) {
-                    $revenueByType[$type] = [
-                        'count' => 0,
-                        'amount' => 0
-                    ];
+                    $revenueByType[$type] = ['count' => 0, 'amount' => 0];
                 }
-
                 $revenueByType[$type]['count']++;
                 $revenueByType[$type]['amount'] += $appointment->payement ?? 0;
             }
 
-            // =========================
-            // STATUS COUNTS FOR CHART
-            // =========================
             $statusCounts = [
                 'waiting'     => $waitingPatients->count(),
                 'preparing'   => $preparingPatients->count(),
@@ -147,6 +104,7 @@ class MedecinController extends Controller
                     'activeAppointments'     => $activeAppointments,
 
                     'currentPatient'         => $currentPatient,
+                    'patientHistory'         => $patientHistory,
                     'waitingPatients'        => $waitingPatients,
                     'preparingPatients'      => $preparingPatients,
                     'completedPatients'      => $completedPatients,

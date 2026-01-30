@@ -20,6 +20,6 @@ class DatabaseSeeder extends Seeder
             ->has(Appointment::factory()->count(3))
             ->create();
             
-        // Analysis::factory()->count(50)->create();
+        Analysis::factory()->count(50)->create();
     }
 }

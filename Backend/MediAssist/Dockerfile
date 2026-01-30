@@ -3,6 +3,8 @@ FROM php:8.2-fpm
 # System dependencies
 RUN apt-get update && apt-get install -y \
     git unzip curl libpng-dev libonig-dev libxml2-dev zip libzip-dev \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
     && docker-php-ext-install pdo pdo_mysql mbstring zip exif pcntl gd
 
 # Install Composer

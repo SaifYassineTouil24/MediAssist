@@ -42,6 +42,13 @@ services:
     volumes:
       - db_data:/var/lib/mysql
 
+  redis:
+    image: redis:alpine
+    container_name: redis_cache
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
   nginx:
     image: nginx:latest
     container_name: nginx_proxy

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
@@ -20,9 +20,14 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/")
+    }
+  }, [isAuthenticated, router])
+
   if (isAuthenticated) {
-    router.push("/")
-    return null
+    return null // Or a loading spinner
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

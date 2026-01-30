@@ -447,16 +447,16 @@ const MedicalHeader = () => {
   }
 
   return (
-    <header className="bg-[#007090] shadow-sm border-b border-[#007090]">
+    <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={() => router.back()}>
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100" onClick={() => router.back()}>
               <ChevronLeft />
               <span className="ml-2">Retour</span>
             </Button>
 
-            <nav className="flex items-center space-x-2 text-sm text-white/80">
+            <nav className="flex items-center space-x-2 text-sm text-gray-500">
               <Home />
               <span>/</span>
               <span>Tableau de bord</span>
@@ -466,10 +466,10 @@ const MedicalHeader = () => {
           <div className="flex items-center space-x-6">
             <div className="text-center">
               <div className="flex items-center space-x-2">
-                <Clock />
-                <span className="text-lg font-mono font-semibold text-white">{formatTime(currentTime)}</span>
+                <Clock className="text-blue-600" />
+                <span className="text-lg font-mono font-semibold text-gray-800">{formatTime(currentTime)}</span>
               </div>
-              <div className="text-xs text-white/70">{formatDate(currentTime)}</div>
+              <div className="text-xs text-gray-500">{formatDate(currentTime)}</div>
             </div>
           </div>
 
@@ -477,7 +477,7 @@ const MedicalHeader = () => {
             <div className="flex items-center space-x-2">
               <Dialog open={isPatientModalOpen} onOpenChange={setIsPatientModalOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="bg-white text-[#007090] hover:bg-white/90">
+                  <Button size="sm" className="bg-[#007090] text-white hover:bg-[#005570] shadow-md transition-all hover:scale-105">
                     <Plus />
                     <span className="ml-2">Nouveau Patient</span>
                   </Button>
@@ -684,7 +684,7 @@ const MedicalHeader = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-white text-white hover:bg-white/20 bg-transparent"
+                    className="border-[#007090] text-[#007090] hover:bg-blue-50 bg-transparent"
                   >
                     <Calendar />
                     <span className="ml-2">Nouveau RV</span>
@@ -812,8 +812,8 @@ const MedicalHeader = () => {
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-white hover:bg-white/20">
-                  <CalendarDays />
+                <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100 hover:text-blue-600 transition-colors">
+                  <CalendarDays className="h-5 w-5" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-fit p-3" align="end">
@@ -862,19 +862,19 @@ const MedicalHeader = () => {
 
             <div className="flex items-center space-x-3">
               <div
-                className="flex items-center space-x-3 cursor-pointer hover:bg-white/20 p-2 rounded-lg transition-colors"
+                className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors border border-transparent hover:border-gray-100"
                 onClick={() => router.push("/profile")}
               >
-                <Avatar className="border-2 border-white/30">
-                  <AvatarImage src="/professional-doctor-avatar.png" />
-                  <AvatarFallback className="bg-white/20 text-white">
-                    <User />
+                <div className="text-sm text-right hidden md:block">
+                  <div className="font-semibold text-gray-800">{user?.name || "Dr. Sarah Johnson"}</div>
+                  <div className="text-blue-600 text-xs font-medium">{user?.role || "Médecin"}</div>
+                </div>
+                <Avatar className="h-9 w-9 border-2 border-white shadow-sm ring-1 ring-gray-200">
+                  <AvatarImage src={user?.avatar || "/professional-doctor-avatar.png"} />
+                  <AvatarFallback className="bg-[#007090] text-white">
+                    <User className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="text-sm">
-                  <div className="font-medium text-white">{user?.name || "Dr. Sarah Johnson"}</div>
-                  <div className="text-white/70">{user?.role || "Médecin"}</div>
-                </div>
               </div>
             </div>
           </div>
