@@ -294,9 +294,8 @@ export default function PatientsPage() {
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div
-                              className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                                patient.gender === "Male" ? "bg-blue-100" : "bg-pink-100"
-                              }`}
+                              className={`h-10 w-10 rounded-full flex items-center justify-center ${patient.gender === "Male" ? "bg-blue-100" : "bg-pink-100"
+                                }`}
                             >
                               <User
                                 className={`h-5 w-5 ${patient.gender === "Male" ? "text-blue-600" : "text-pink-600"}`}

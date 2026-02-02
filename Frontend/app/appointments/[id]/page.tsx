@@ -132,12 +132,9 @@ export default function AppointmentDetailsPage() {
     temperature: "",
     blood_pressure: "",
     tall: "",
-    k: null,
-    p: null,
-    sang: null,
-    glycimide: "",
     notes: "",
   })
+  const [ddr, setDdr] = useState<string>("")
 
   const handlePrintOrdonnance = useCallback(() => {
     try {
@@ -412,12 +409,9 @@ export default function AppointmentDetailsPage() {
           temperature: appt?.case_description?.temperature?.toString() || "",
           blood_pressure: appt?.case_description?.blood_pressure || "",
           tall: appt?.case_description?.tall?.toString() || "",
-          k: appt?.case_description?.K || appt?.case_description?.k || null,
-          p: appt?.case_description?.P || appt?.case_description?.p || null,
-          sang: appt?.case_description?.Sang || appt?.case_description?.sang || null,
-          glycimide: appt?.case_description?.Glycimide?.toString() || appt?.case_description?.glycimide?.toString() || "",
           notes: appt?.case_description?.notes || "",
         })
+        setDdr(appt?.patient?.DDR || "")
 
         if (appt?.medicaments && Array.isArray(appt.medicaments) && appt.medicaments.length > 0) {
           setMedications(
@@ -622,10 +616,7 @@ export default function AppointmentDetailsPage() {
           blood_pressure: vitalSigns.blood_pressure || undefined,
           tall: vitalSigns.tall ? Number(vitalSigns.tall) : undefined,
           spo2: null,
-          K: vitalSigns.k || undefined,
-          P: vitalSigns.p || undefined,
-          Sang: vitalSigns.sang || undefined,
-          Glycimide: vitalSigns.glycimide ? Number(vitalSigns.glycimide) : undefined,
+          DDR: ddr || undefined,
           notes: vitalSigns.notes || undefined,
           diagnostic: diagnostic || "",
           medicaments: medicamentsData,
@@ -663,7 +654,7 @@ export default function AppointmentDetailsPage() {
         setSaving(false)
       }
     },
-    [appointmentId, medications, analyses, caseDescription, vitalSigns, diagnostic, toast, router],
+    [appointmentId, medications, analyses, caseDescription, vitalSigns, ddr, diagnostic, toast, router],
   )
 
   const formatDate = (dateString: string) => {
@@ -913,65 +904,104 @@ export default function AppointmentDetailsPage() {
                     </div>
                   )}
 
-                  {caseConfig.show_glycemia && (
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">Glyc (mg/dL)</label>
-                      <Input
-                        type="number"
-                        value={vitalSigns.glycimide}
-                        onChange={(e) => setVitalSigns({ ...vitalSigns, glycimide: e.target.value })}
-                        placeholder="100"
-                        className={`h-8 border-2 ${getGlycimideColor(vitalSigns.glycimide ? Number(vitalSigns.glycimide) : null)} text-blue-700 bg-blue-50/50 placeholder:text-blue-300`}
-                      />
-                    </div>
-                  )}
 
-                  <div className="grid grid-cols-3 gap-1 col-span-1 sm:col-span-2">
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">K</label>
-                      <select
-                        value={vitalSigns.k || ""}
-                        onChange={(e) => setVitalSigns({ ...vitalSigns, k: e.target.value || null })}
-                        className={`w-full px-1 py-1 h-8 text-sm border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${vitalSigns.k ? getBorderColor(vitalSigns.k) : "border-blue-200 bg-blue-50/50 text-blue-700"
-                          }`}
-                      >
-                        <option value="">-</option>
-                        <option value="-+">-+</option>
-                        <option value="+">+</option>
-                        <option value="++">++</option>
-                        <option value="+++">+++</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">P</label>
-                      <select
-                        value={vitalSigns.p || ""}
-                        onChange={(e) => setVitalSigns({ ...vitalSigns, p: e.target.value || null })}
-                        className={`w-full px-1 py-1 h-8 text-sm border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${vitalSigns.p ? getBorderColor(vitalSigns.p) : "border-blue-200 bg-blue-50/50 text-blue-700"
-                          }`}
-                      >
-                        <option value="">-</option>
-                        <option value="-+">-+</option>
-                        <option value="+">+</option>
-                        <option value="++">++</option>
-                        <option value="+++">+++</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">Sang</label>
-                      <select
-                        value={vitalSigns.sang || ""}
-                        onChange={(e) => setVitalSigns({ ...vitalSigns, sang: e.target.value || null })}
-                        className={`w-full px-1 py-1 h-8 text-sm border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${vitalSigns.sang ? getBorderColor(vitalSigns.sang) : "border-blue-200 bg-blue-50/50 text-blue-700"
-                          }`}
-                      >
-                        <option value="">-</option>
-                        <option value="-+">-+</option>
-                        <option value="+">+</option>
-                        <option value="++">++</option>
-                        <option value="+++">+++</option>
-                      </select>
-                    </div>
+                  {/* DDR Field */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-blue-700 mb-1">DDR (Date des Dernières Règles)</label>
+                    <Input
+                      type="date"
+                      value={ddr}
+                      onChange={(e) => setDdr(e.target.value)}
+                      className="h-8 text-blue-700 bg-blue-50/50 border-blue-200 focus-visible:ring-blue-500"
+                    />
+                    {ddr && (() => {
+                      const ddrDate = new Date(ddr)
+                      const today = new Date()
+                      today.setHours(0, 0, 0, 0) // Reset time to compare dates only
+                      ddrDate.setHours(0, 0, 0, 0)
+
+                      // Check if DDR is in the future
+                      if (ddrDate > today) {
+                        return (
+                          <div className="mt-2 p-3 rounded-lg border-2 bg-red-50 border-red-300">
+                            <div className="flex items-center gap-2">
+                              <span className="text-red-700 text-xs font-bold">⚠️ Erreur:</span>
+                              <span className="text-red-600 text-xs">La DDR ne peut pas être dans le futur</span>
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      const diffMs = today.getTime() - ddrDate.getTime()
+                      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+                      const weeks = Math.floor(Math.abs(diffDays) / 7)
+                      const days = Math.abs(diffDays) % 7
+
+                      // Calculate DPA (Naegele's Rule: DDR + 1 year - 3 months + 7 days)
+                      const dpa = new Date(ddrDate)
+                      dpa.setFullYear(dpa.getFullYear() + 1)
+                      dpa.setMonth(dpa.getMonth() - 3)
+                      dpa.setDate(dpa.getDate() + 7)
+
+                      // Determine trimester and color
+                      let trimester = ""
+                      let bgColor = ""
+                      let textColor = ""
+                      let borderColor = ""
+
+                      if (weeks <= 12) {
+                        trimester = "1er Trimestre"
+                        bgColor = "bg-green-50"
+                        textColor = "text-green-700"
+                        borderColor = "border-green-300"
+                      } else if (weeks <= 27) {
+                        trimester = "2ème Trimestre"
+                        bgColor = "bg-yellow-50"
+                        textColor = "text-yellow-700"
+                        borderColor = "border-yellow-300"
+                      } else if (weeks <= 40) {
+                        trimester = "3ème Trimestre"
+                        bgColor = "bg-orange-50"
+                        textColor = "text-orange-700"
+                        borderColor = "border-orange-300"
+                      } else {
+                        trimester = "Post-terme"
+                        bgColor = "bg-red-50"
+                        textColor = "text-red-700"
+                        borderColor = "border-red-300"
+                      }
+
+                      return (
+                        <div className={`mt-2 p-3 rounded-lg border-2 ${bgColor} ${borderColor}`}>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-bold ${textColor}`}>
+                                🤰 {weeks} SA + {days}j
+                              </span>
+                              <span className={`text-xs font-semibold px-2 py-1 rounded ${bgColor} ${textColor} border ${borderColor}`}>
+                                {trimester}
+                              </span>
+                            </div>
+
+                            <div className={`text-xs ${textColor} font-medium`}>
+                              📅 DPA: {dpa.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                            </div>
+
+                            {weeks <= 40 && (
+                              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div
+                                  className={`h-2 rounded-full transition-all ${weeks <= 12 ? 'bg-green-500' :
+                                    weeks <= 27 ? 'bg-yellow-500' :
+                                      'bg-orange-500'
+                                    }`}
+                                  style={{ width: `${Math.min((weeks / 40) * 100, 100)}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   <div className="sm:col-span-2">

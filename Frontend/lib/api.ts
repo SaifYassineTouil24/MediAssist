@@ -41,6 +41,7 @@ export interface Patient {
   email?: string | null
   notes?: string | null
   archived: number
+  DDR?: string
   created_at?: string
   updated_at?: string
 }
@@ -73,11 +74,7 @@ export interface CaseDescription {
   blood_pressure?: string
   tall?: number
   spo2?: null
-  k?: string
-  p?: string
-  sang?: string
   notes?: string
-  glycimide?: number
 }
 
 export interface Medicament {
@@ -104,6 +101,16 @@ export interface Analysis {
   archived?: boolean | number // Backend returns 0/1, frontend uses boolean
   created_at?: string
   updated_at?: string
+}
+
+export interface PatientDocument {
+  id: number
+  ID_patient: number
+  document_name: string
+  document_type: string
+  file_path: string
+  file_size: number
+  uploaded_at: string
 }
 
 export interface ApiResponse<T> {
@@ -210,21 +217,7 @@ class ApiClient {
   }
 
   async getMonthlyCounts(yearMonth: string): Promise<ApiResponse<Record<string, number>>> {
-    const response = await this.request<Record<string, number> | { data: Record<string, number> }>(
-      `/appointments/monthly-counts/${yearMonth}`,
-    )
-
-    if (response.success && response.data) {
-      const data = response.data as any
-      // If data has a 'data' property, extract it; otherwise use data directly
-      const counts = data.data || data
-      return {
-        success: true,
-        data: counts as Record<string, number>,
-      }
-    }
-
-    return response as ApiResponse<Record<string, number>>
+    return this.request(`/appointments/monthly-counts/${yearMonth}`)
   }
 
   async updateAppointmentStatus(
@@ -275,12 +268,8 @@ class ApiClient {
       blood_pressure?: string
       tall?: number
       spo2?: null
-      k?: string
-      p?: string
-      sang?: string
+      DDR?: string
       notes?: string
-      diagnostic?: string
-      glycimide?: number
       medicaments?: Array<{
         ID_Medicament: number
         dosage?: string
@@ -1089,6 +1078,80 @@ class ApiClient {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ permissions }),
+    })
+  }
+
+  // Patient Documents
+  async getPatientDocuments(patientId: number): Promise<ApiResponse<PatientDocument[]>> {
+    const res = await this.request<any>(`/patients/${patientId}/documents`)
+    if (res.success && res.data && res.data.data) {
+      return { success: true, data: res.data.data }
+    }
+    return res as ApiResponse<PatientDocument[]>
+  }
+
+  async uploadPatientDocument(patientId: number, file: File, documentType?: string): Promise<ApiResponse<PatientDocument>> {
+    const formData = new FormData()
+    formData.append("file", file)
+    if (documentType) {
+      formData.append("document_type", documentType)
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/patients/${patientId}/documents`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          Accept: "application/json",
+        },
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to upload document")
+      }
+
+      // Extract the document from the data field if it's there
+      return {
+        success: true,
+        data: data.data || data,
+        message: data.message,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Upload failed",
+      }
+    }
+  }
+
+  async downloadPatientDocument(patientId: number, documentId: number): Promise<void> {
+    const url = `${API_BASE_URL}/patients/${patientId}/documents/${documentId}/download`
+    window.open(url, "_blank")
+  }
+
+  async deletePatientDocument(patientId: number, documentId: number): Promise<ApiResponse<void>> {
+    const res = await this.request<any>(`/patients/${patientId}/documents/${documentId}`, {
+      method: "DELETE"
+    })
+    return {
+      success: res.success,
+      message: res.message || (res.data && res.data.message),
+    }
+  }
+
+  // Google Drive Sync
+  async getGoogleAuthUrl(): Promise<ApiResponse<{ url: string }>> {
+    return this.request("/google/auth-url")
+  }
+
+  async handleGoogleCallback(code: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request(`/google/callback?code=${code}`)
+  }
+
+  async syncAllDataToGoogle(): Promise<ApiResponse<{ success: boolean; message: string; needs_auth?: boolean; file_id?: string }>> {
+    return this.request("/google/sync-all", {
+      method: "POST",
     })
   }
 }

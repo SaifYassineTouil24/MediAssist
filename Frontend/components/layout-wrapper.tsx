@@ -19,6 +19,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     if (!isLoading && !isAuthenticated && !isAuthPage) {
       router.push("/login")
     }
+    if (!isLoading && isAuthenticated && isAuthPage) {
+      router.push("/")
+    }
   }, [isLoading, isAuthenticated, isAuthPage, router])
 
   const defaultUser = {
@@ -38,7 +41,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !isAuthPage) {
     return (
       <GlobalSyncProvider>
         <div className="flex h-screen bg-gray-100">

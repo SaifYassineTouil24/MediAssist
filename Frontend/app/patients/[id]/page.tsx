@@ -13,8 +13,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Edit, User, Phone, Mail, FileText, AlertCircle, Heart, Calendar, CalendarCheck, History, Search, Zap, FileCheck, BarChart3, Clock, Plus, Save, Trash2, Printer, Shield, Check } from 'lucide-react'
-import { apiClient } from "@/lib/api"
+import { ArrowLeft, Edit, User, Phone, Mail, FileText, AlertCircle, Heart, Calendar, CalendarCheck, History, Search, Zap, FileCheck, BarChart3, Clock, Plus, Save, Trash2, Printer, Shield, Check, Download, Upload, FileUp } from 'lucide-react'
+import { apiClient, type PatientDocument } from "@/lib/api"
 
 interface PatientDetails {
   ID_patient: number
@@ -51,6 +51,7 @@ interface PatientDetails {
     end_date: string
     content: string
   }>
+  documents?: PatientDocument[]
 }
 
 export default function PatientDetailsPage() {
@@ -69,6 +70,9 @@ export default function PatientDetailsPage() {
   const [savingAppointmentId, setSavingAppointmentId] = useState<number | null>(null)
   const [savingMutuelleId, setSavingMutuelleId] = useState<number | null>(null)
   const [loadingMedicaments, setLoadingMedicaments] = useState(false)
+  const [documents, setDocuments] = useState<PatientDocument[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const priceDebounceTimers = useRef<Record<number, NodeJS.Timeout>>({})
 
@@ -143,8 +147,20 @@ export default function PatientDetailsPage() {
       }
     }
 
+    const fetchDocuments = async () => {
+      try {
+        const response = await apiClient.getPatientDocuments(patientId)
+        if (response.success && response.data) {
+          setDocuments(Array.isArray(response.data) ? response.data : [])
+        }
+      } catch (err) {
+        console.error("[v0] Error fetching documents:", err)
+      }
+    }
+
     if (patientId) {
       fetchPatientDetails()
+      fetchDocuments()
     }
   }, [patientId])
 
@@ -752,6 +768,59 @@ export default function PatientDetailsPage() {
     [patientId, toast, patient],
   )
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      setIsUploading(true)
+      const response = await apiClient.uploadPatientDocument(patientId, file)
+      if (response.success && response.data) {
+        setDocuments((prev) => [response.data as PatientDocument, ...(Array.isArray(prev) ? prev : [])])
+        toast({
+          title: "Succès",
+          description: "Document téléchargé avec succès",
+        })
+      }
+    } catch (err) {
+      console.error("[v0] Error uploading document:", err)
+      toast({
+        title: "Erreur",
+        description: err instanceof Error ? err.message : "Erreur lors du téléchargement",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  const handleDeleteDocument = async (documentId: number) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer ce document ?")) return
+
+    try {
+      const response = await apiClient.deletePatientDocument(patientId, documentId)
+      if (response.success) {
+        setDocuments((prev) => (Array.isArray(prev) ? prev.filter((doc) => doc.id !== documentId) : []))
+        toast({
+          title: "Succès",
+          description: "Document supprimé avec succès",
+        })
+      }
+    } catch (err) {
+      console.error("[v0] Error deleting document:", err)
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le document",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDownloadDocument = async (documentId: number) => {
+    apiClient.downloadPatientDocument(patientId, documentId)
+  }
+
 
   if (loading) {
     return (
@@ -1206,6 +1275,81 @@ export default function PatientDetailsPage() {
                   <div className="p-6 text-center text-gray-500">
                     <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
                     <p>Aucun certificat enregistré</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Patient Documents Section */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="bg-amber-50 border-b flex flex-row items-center justify-between py-3">
+              <CardTitle className="flex items-center gap-2 text-lg text-amber-800">
+                <FileUp className="h-5 w-5 text-amber-500" />
+                Documents du Patient
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white border-amber-200 text-amber-600 hover:bg-amber-50"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-amber-500 border-t-transparent rounded-full" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-1" />
+                )}
+                Ajouter
+              </Button>
+              <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                {documents && documents.length > 0 ? (
+                  documents.map((doc: PatientDocument) => (
+                    <div key={doc.id} className="p-4 hover:bg-gray-50 transition-colors group">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <div className="p-2 bg-amber-100 rounded-lg">
+                            <FileText className="h-4 w-4 text-amber-600" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="font-medium text-gray-800 truncate text-sm" title={doc.document_name}>
+                              {doc.document_name}
+                            </p>
+                            <p className="text-[10px] text-gray-500 flex items-center gap-2">
+                              <span>{new Date(doc.uploaded_at).toLocaleDateString("fr-FR")}</span>
+                              <span>•</span>
+                              <span>{(doc.file_size / 1024).toFixed(1)} KB</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="p-2 h-8 w-8 text-blue-600 hover:bg-blue-100"
+                            onClick={() => handleDownloadDocument(doc.id)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            className="p-2 h-8 w-8 text-red-600 hover:bg-red-100"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-gray-400">
+                    <FileUp className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm italic">Aucun document téléchargé</p>
                   </div>
                 )}
               </div>

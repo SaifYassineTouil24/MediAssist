@@ -25,7 +25,8 @@ class Patient extends Model
         'allergies',
         'chronic_conditions',
         'notes',
-        'archived'
+        'archived',
+        'DDR',
     ];
 
     public function Appointment(): \Illuminate\Database\Eloquent\Relations\HasMany
@@ -49,5 +50,10 @@ public function nextAppointment()
     return $this->hasOne(Appointment::class, 'ID_patient', 'ID_patient')
         ->where('appointment_date', '>', now())
         ->oldest('appointment_date');
+}
+
+public function documents()
+{
+    return $this->hasMany(PatientDocument::class, 'ID_patient', 'ID_patient');
 }
 }

@@ -235,10 +235,7 @@ class AppointmentController extends Controller
                 'blood_pressure' => 'nullable|string|max:20',
                 'tall' => 'nullable|numeric|min:0|max:250',
                 'spo2' => 'nullable|numeric|min:0|max:100',
-                'K' => 'nullable|string|max:50',
-                'P' => 'nullable|string|max:50',
-                'Glycimide' => 'nullable|numeric|min:0|max:200',
-                'Sang' => 'nullable|string|max:50',
+                'DDR' => 'nullable|date',
                 'notes' => 'nullable|string|max:255',
                 'diagnostic' => 'nullable|string',
                 'medicaments' => 'nullable|array',
@@ -254,6 +251,11 @@ class AppointmentController extends Controller
             $appointment->diagnostic = $request->input('diagnostic');
             $appointment->save();
 
+            // Update Patient DDR if present
+            if ($request->has('DDR')) {
+                $appointment->patient->update(['DDR' => $request->input('DDR')]);
+            }
+
             // Update or create case description
            $caseData = [
     'case_description' => $request->input('case_description'),
@@ -263,10 +265,6 @@ class AppointmentController extends Controller
     'blood_pressure' => $request->input('blood_pressure'),
     'tall' => $request->input('tall'),
     'spo2' => $request->input('spo2'),
-    'K' => $request->input('K'),
-    'P' => $request->input('P'),
-    'Sang' => $request->input('Sang'),
-    'Glycimide' => $request->input('Glycimide'),
     'notes' => $request->input('notes'),
 ];
 
